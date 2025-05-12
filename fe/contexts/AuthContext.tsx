@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { login as loginService } from "@/services/public";
 import { useDispatch } from "react-redux";
 import { setUser, clearUser } from "@/redux/slices/userSlice";
+import useFetchAndLoad from "@/hooks/useFetchAndLoad";
 
 interface AuthContextType {
   user: any | null;
@@ -29,6 +30,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const dispatch = useDispatch();
+  const { callEndpoint } = useFetchAndLoad();
 
   useEffect(() => {
     // Solo ejecuta en el cliente
@@ -43,9 +45,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         try {
-          const userData = JSON.parse(storedUser);
-          setUserState(userData);
-          dispatch(setUser({ ...userData, token: storedToken }));
+          // Ensure storedUser is not undefined or "undefined" string before parsing
+          if (storedUser && storedUser !== "undefined") {
+            const userData = JSON.parse(storedUser);
+            setUserState(userData);
+            dispatch(setUser({ ...userData, token: storedToken }));
+          } else {
+            // Clear invalid data
+            localStorage.removeItem("token");
+            localStorage.removeItem("userData");
+          }
         } catch (error) {
           console.error("Error parsing stored user data", error);
           localStorage.removeItem("token");
@@ -64,14 +73,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { call, controller } = loginService(email, password);
-      const response = await call;
-
+      const response = await callEndpoint(loginService(email, password));
       if (response && response.data) {
-        const { token, user } = response.data;
+        const { token, userData } = response.data;
+        const user = userData;
         // Guardar en localStorage
         localStorage.setItem("token", token);
-        localStorage.setItem("userData", JSON.stringify(user));
+        localStorage.setItem("userData", JSON.stringify(userData));
 
         // Actualizar estado y Redux
         setUserState(user);
@@ -112,4 +120,5 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// Export default was missing which could cause import issues
 export default AuthContext;

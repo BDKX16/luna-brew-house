@@ -1,9 +1,7 @@
-import { loadAbort } from "../utils/load-abort-controller";
+import { loadAbort } from "@/utils/load-abort-controller";
 import axios from "axios";
-import store from "../redux/store";
+import { store } from "../redux/store";
 //import { useSelector } from "react-redux";
-
-import { enqueueSnackbar } from "notistack";
 
 const getAxiosHeaders = () => {
   //const userState = useSelector((store) => store.user);
@@ -25,7 +23,7 @@ export const login = (username, password) => {
   return {
     call: axios
       .post(
-        import.meta.env.VITE_BASE_URL + "/login",
+        process.env.NEXT_PUBLIC_API_URL + "/login",
         { email: username, password },
         { signal: controller.signal }
       )
@@ -41,7 +39,7 @@ export const register = (name, username, password) => {
   return {
     call: axios
       .post(
-        import.meta.env.VITE_BASE_URL + "/register",
+        process.env.NEXT_PUBLIC_API_URL + "/register",
         { name: name, email: username, password: password },
         { signal: controller.signal }
       )
@@ -57,7 +55,7 @@ export const getBeers = () => {
   const controller = loadAbort();
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + "/beers", {
+      .get(process.env.NEXT_PUBLIC_API_URL + "/beers", {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -71,7 +69,7 @@ export const getBeerById = (beerId) => {
   const controller = loadAbort();
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + `/beers/${beerId}`, {
+      .get(process.env.NEXT_PUBLIC_API_URL + `/beers/${beerId}`, {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -86,7 +84,7 @@ export const getSubscriptionPlans = () => {
   const controller = loadAbort();
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + "/subscriptions", {
+      .get(process.env.NEXT_PUBLIC_API_URL + "/subscriptions", {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -100,7 +98,7 @@ export const getSubscriptionPlanById = (planId) => {
   const controller = loadAbort();
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + `/subscriptions/${planId}`, {
+      .get(process.env.NEXT_PUBLIC_API_URL + `/subscriptions/${planId}`, {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -114,7 +112,7 @@ export const getFeaturedSubscriptions = () => {
   const controller = loadAbort();
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + "/featured-subscriptions", {
+      .get(process.env.NEXT_PUBLIC_API_URL + "/featured-subscriptions", {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -130,7 +128,7 @@ export const validateDiscount = (code, cartItems) => {
   return {
     call: axios
       .post(
-        import.meta.env.VITE_BASE_URL + "/validate-discount",
+        process.env.NEXT_PUBLIC_API_URL + "/validate-discount",
         { code, cartItems },
         { signal: controller.signal }
       )
@@ -155,7 +153,7 @@ export const getUserSubscriptions = () => {
 
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + "/my-subscriptions", headers, {
+      .get(process.env.NEXT_PUBLIC_API_URL + "/my-subscriptions", headers, {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -179,7 +177,7 @@ export const getUserSubscriptionById = (subscriptionId) => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL + `/my-subscriptions/${subscriptionId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/my-subscriptions/${subscriptionId}`,
         headers,
         {
           signal: controller.signal,
@@ -206,7 +204,7 @@ export const updateSubscriptionStatus = (subscriptionId, status) => {
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL +
+        process.env.NEXT_PUBLIC_API_URL +
           `/my-subscriptions/${subscriptionId}/status`,
         { status },
         headers,
@@ -233,7 +231,7 @@ export const cancelUserSubscription = (subscriptionId, reason) => {
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL +
+        process.env.NEXT_PUBLIC_API_URL +
           `/my-subscriptions/${subscriptionId}/cancel`,
         { reason },
         headers,
@@ -264,7 +262,7 @@ export const updateSubscriptionBeerType = (
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL +
+        process.env.NEXT_PUBLIC_API_URL +
           `/my-subscriptions/${subscriptionId}/beer-type`,
         { beerType, beerName },
         headers,
@@ -291,7 +289,7 @@ export const createSubscription = (subscriptionId, beerType, beerName) => {
   return {
     call: axios
       .post(
-        import.meta.env.VITE_BASE_URL + `/subscriptions`,
+        process.env.NEXT_PUBLIC_API_URL + `/subscriptions`,
         { subscriptionId, beerType, beerName },
         headers,
         { signal: controller.signal }
@@ -317,7 +315,7 @@ export const getTopProducts = () => {
 
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + "/top-products", headers, {
+      .get(process.env.NEXT_PUBLIC_API_URL + "/top-products", headers, {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -333,12 +331,15 @@ export const getTopProducts = () => {
 
 const notifyError = (error) => {
   if (error.status === 401) {
-    enqueueSnackbar("No autorizado", {
-      variant: "error",
-    });
+    // enqueueSnackbar("No autorizado", {
+    //   variant: "error",
+    // });
   } else if (error.status !== 200) {
-    enqueueSnackbar(error.response.data.error.message, {
-      variant: "error",
-    });
+    // enqueueSnackbar(
+    //   error.response?.data?.error?.message || "Error desconocido",
+    //   {
+    //     variant: "error",
+    //   }
+    // );
   }
 };

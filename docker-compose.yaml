@@ -1,19 +1,6 @@
 version: "3.8"
 
 services:
-  mongo:
-    container_name: mongodb
-    image: mongo:5.0.18
-    restart: always
-    environment:
-      TZ: "${TZ}"
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-    volumes:
-      - ./mongodata:/data/db
-    ports:
-      - "${MONGO_EXT_PORT}:27017"
-
   backend:
     container_name: nodesv-luna-brew-house
     restart: always
@@ -21,7 +8,7 @@ services:
     env_file:
       - ./api/.env
     ports:
-      - "3001:3001"
+      - "3009:3001"
     links:
       - mongo
     depends_on:
@@ -34,7 +21,7 @@ services:
     env_file:
       - ./fe/.env
     ports:
-      - "3008:3000" # Exponer el puerto 3007 al host
+      - "3008:3000" # Exponer el puerto 3008 al host
     environment:
       - NODE_ENV=production
       # Importante para que Next.js escuche en todas las interfaces

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 
 export default function LoginPage() {
@@ -24,21 +24,15 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
+  const { login, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isAuthenticated } = useAuth();
 
-  // Verificar si el usuario viene de un registro exitoso
   useEffect(() => {
     if (searchParams?.get("registered") === "true") {
       setShowRegistrationSuccess(true);
     }
-
-    // Si el usuario ya está autenticado, redirigir al perfil
-    if (isAuthenticated) {
-      router.push("/perfil");
-    }
-  }, [searchParams, isAuthenticated, router]);
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,20 +41,15 @@ export default function LoginPage() {
 
     try {
       const success = await login(email, password);
-
       if (success) {
-        // Redirigir al usuario a su perfil
-        router.push("/perfil");
+        const redirectPath = searchParams?.get("redirect") || "/perfil";
+        router.push(redirectPath);
       } else {
-        setError("Credenciales incorrectas. Verifica tu email y contraseña.");
+        setError("No se pudo iniciar sesión. Verifica tus credenciales.");
       }
     } catch (err: any) {
       console.error("Error en login:", err);
-      if (err.response?.data?.message) {
-        setError(err.response.data.message);
-      } else {
-        setError("No se pudo iniciar sesión. Por favor, intenta de nuevo.");
-      }
+      setError("Error al iniciar sesión. Por favor, intenta de nuevo.");
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +80,7 @@ export default function LoginPage() {
           <CardContent>
             {showRegistrationSuccess && (
               <Alert className="mb-4 bg-green-50 border-green-200 text-green-800">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
                 <AlertDescription>
                   ¡Registro exitoso! Ya puedes iniciar sesión con tus
                   credenciales.

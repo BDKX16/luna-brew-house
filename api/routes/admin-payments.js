@@ -198,13 +198,11 @@ router.patch(
 
       // No permitir cambios en órdenes ya entregadas o canceladas
       if (order.status === "delivered" || order.status === "cancelled") {
-        return res
-          .status(400)
-          .json({
-            error: `No se puede modificar la entrega de una orden ${
-              order.status === "delivered" ? "ya entregada" : "cancelada"
-            }`,
-          });
+        return res.status(400).json({
+          error: `No se puede modificar la entrega de una orden ${
+            order.status === "delivered" ? "ya entregada" : "cancelada"
+          }`,
+        });
       }
 
       // Actualizar información de entrega
@@ -398,7 +396,381 @@ router.get(
   }
 );
 
-// Funciones auxiliares
+/**
+ * NUEVOS ENDPOINTS PARA EL DASHBOARD
+ */
+
+// Obtener estadísticas completas para el dashboard
+router.get("/dashboard", checkAuth, checkRole(["admin"]), async (req, res) => {
+  try {
+    // Obtener métricas actuales y comparativas
+    const dashboardStats = await getDashboardStats();
+    res.status(200).json(dashboardStats);
+  } catch (error) {
+    console.error("Error al obtener estadísticas del dashboard:", error);
+    res.status(500).json({
+      error: "Error al obtener las estadísticas del dashboard",
+    });
+  }
+});
+
+// Obtener los productos más vendidos
+router.get(
+  "/dashboard/top-products",
+  checkAuth,
+  checkRole(["admin", "owner"]),
+  async (req, res) => {
+    try {
+      const { limit = 5 } = req.query;
+
+      // Obtener fecha de inicio del mes actual
+      const today = new Date();
+      const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+
+      const topProducts = await Order.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate },
+            status: { $nin: ["cancelled", "failed"] },
+            nullDate: null,
+          },
+        },
+        { $unwind: "$items" },
+        {
+          $group: {
+            _id: "$items.id",
+            name: { $first: "$items.name" },
+            type: { $first: "$items.type" },
+            sales: { $sum: "$items.quantity" },
+            revenue: {
+              $sum: { $multiply: ["$items.price", "$items.quantity"] },
+            },
+          },
+        },
+        { $sort: { sales: -1 } },
+        { $limit: parseInt(limit) },
+        {
+          $project: {
+            _id: 0,
+            id: "$_id",
+            name: 1,
+            type: 1,
+            sales: 1,
+            revenue: 1,
+          },
+        },
+      ]);
+
+      res.status(200).json({ topProducts });
+    } catch (error) {
+      console.error("Error al obtener productos más vendidos:", error);
+      res.status(500).json({
+        error: "Error al obtener el listado de productos más vendidos",
+      });
+    }
+  }
+);
+
+// Obtener pedidos recientes
+router.get(
+  "/dashboard/recent-orders",
+  checkAuth,
+  checkRole(["admin", "owner"]),
+  async (req, res) => {
+    try {
+      const { limit = 5 } = req.query;
+
+      const recentOrders = await Order.find({
+        nullDate: null,
+      })
+        .sort({ date: -1 })
+        .limit(parseInt(limit))
+        .lean();
+
+      // Enriquecer con información de clientes
+      const ordersWithCustomerInfo = await Promise.all(
+        recentOrders.map(async (order) => {
+          let customerName = "Cliente no registrado";
+
+          if (order.customer && order.customer.userId) {
+            const user = await User.findById(order.customer.userId, {
+              name: 1,
+              email: 1,
+            });
+
+            if (user) {
+              customerName = user.name || user.email;
+            }
+          } else if (order.customer && order.customer.name) {
+            customerName = order.customer.name;
+          }
+
+          return {
+            id: order.id,
+            customer: customerName,
+            date: order.date,
+            status: order.status,
+            total: order.total,
+          };
+        })
+      );
+
+      res.status(200).json({ recentOrders: ordersWithCustomerInfo });
+    } catch (error) {
+      console.error("Error al obtener pedidos recientes:", error);
+      res.status(500).json({
+        error: "Error al obtener el listado de pedidos recientes",
+      });
+    }
+  }
+);
+
+// Función auxiliar para obtener todas las estadísticas del dashboard
+async function getDashboardStats() {
+  // Fecha actual
+  const today = new Date();
+
+  // Período actual (mes actual)
+  const currentPeriodStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  // Período anterior (mes anterior)
+  const previousPeriodStart = new Date(
+    today.getFullYear(),
+    today.getMonth() - 1,
+    1
+  );
+  const previousPeriodEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+
+  // Obtener estadísticas del período actual
+  const currentStats = await getPeriodStats(currentPeriodStart, today);
+
+  // Obtener estadísticas del período anterior
+  const previousStats = await getPeriodStats(
+    previousPeriodStart,
+    previousPeriodEnd
+  );
+
+  // Calcular cambios porcentuales
+  const percentageChanges = calculatePercentageChanges(
+    currentStats,
+    previousStats
+  );
+
+  // Obtener productos más vendidos
+  const topProducts = await getTopProducts(5, currentPeriodStart);
+
+  // Obtener pedidos recientes
+  const recentOrders = await getRecentOrders(5);
+
+  return {
+    stats: [
+      {
+        title: "Ventas Totales",
+        value: formatCurrency(currentStats.totalSales),
+        change: percentageChanges.salesChange,
+        trend: percentageChanges.salesChange >= 0 ? "up" : "down",
+      },
+      {
+        title: "Pedidos",
+        value: currentStats.orderCount.toString(),
+        change: percentageChanges.orderCountChange,
+        trend: percentageChanges.orderCountChange >= 0 ? "up" : "down",
+      },
+      {
+        title: "Clientes",
+        value: currentStats.customerCount.toString(),
+        change: percentageChanges.customerCountChange,
+        trend: percentageChanges.customerCountChange >= 0 ? "up" : "down",
+      },
+      {
+        title: "Tasa de Conversión",
+        value: `${currentStats.conversionRate.toFixed(1)}%`,
+        change: percentageChanges.conversionRateChange,
+        trend: percentageChanges.conversionRateChange >= 0 ? "up" : "down",
+      },
+    ],
+    topProducts,
+    recentOrders,
+  };
+}
+
+// Obtener estadísticas para un período específico
+async function getPeriodStats(startDate, endDate) {
+  // Total de ventas y pedidos
+  const salesResult = await Order.aggregate([
+    {
+      $match: {
+        date: { $gte: startDate, $lte: endDate },
+        status: { $nin: ["cancelled", "failed"] },
+        nullDate: null,
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalSales: { $sum: "$total" },
+        orderCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  // Contar clientes únicos que realizaron pedidos
+  const customerResult = await Order.aggregate([
+    {
+      $match: {
+        date: { $gte: startDate, $lte: endDate },
+        nullDate: null,
+      },
+    },
+    {
+      $group: {
+        _id: "$customer.userId",
+      },
+    },
+    {
+      $count: "uniqueCustomers",
+    },
+  ]);
+
+  // Contar visitas totales (simular con datos de ejemplo - esto necesitaría implementarse con analytics reales)
+  // En una implementación real, esto vendría de Google Analytics o alguna otra fuente de datos
+  const totalVisits = 15000; // Valor de ejemplo - en producción, obtendrías este dato de una fuente real
+
+  // Calcular tasa de conversión (pedidos / visitas)
+  const orderCount = salesResult.length > 0 ? salesResult[0].orderCount : 0;
+  const conversionRate = totalVisits > 0 ? (orderCount / totalVisits) * 100 : 0;
+
+  return {
+    totalSales: salesResult.length > 0 ? salesResult[0].totalSales : 0,
+    orderCount,
+    customerCount:
+      customerResult.length > 0 ? customerResult[0].uniqueCustomers : 0,
+    conversionRate,
+    totalVisits,
+  };
+}
+
+// Calcular cambios porcentuales entre períodos
+function calculatePercentageChanges(current, previous) {
+  const calculateChange = (current, previous) => {
+    if (previous === 0) return current > 0 ? "+100%" : "0%";
+    const change = ((current - previous) / previous) * 100;
+    return `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`;
+  };
+
+  return {
+    salesChange: calculateChange(current.totalSales, previous.totalSales),
+    orderCountChange: calculateChange(current.orderCount, previous.orderCount),
+    customerCountChange: calculateChange(
+      current.customerCount,
+      previous.customerCount
+    ),
+    conversionRateChange: calculateChange(
+      current.conversionRate,
+      previous.conversionRate
+    ),
+  };
+}
+
+// Obtener productos más vendidos
+async function getTopProducts(limit, startDate) {
+  const topProducts = await Order.aggregate([
+    {
+      $match: {
+        date: { $gte: startDate },
+        status: { $nin: ["cancelled", "failed"] },
+        nullDate: null,
+      },
+    },
+    { $unwind: "$items" },
+    {
+      $group: {
+        _id: "$items.id",
+        name: { $first: "$items.name" },
+        sales: { $sum: "$items.quantity" },
+        revenue: {
+          $sum: { $multiply: ["$items.price", "$items.quantity"] },
+        },
+      },
+    },
+    { $sort: { sales: -1 } },
+    { $limit: limit },
+    {
+      $project: {
+        _id: 0,
+        name: 1,
+        sales: 1,
+        revenue: 1,
+      },
+    },
+  ]);
+
+  // Formatear revenue como moneda
+  return topProducts.map((product) => ({
+    ...product,
+    revenue: formatCurrency(product.revenue),
+  }));
+}
+
+// Obtener pedidos recientes
+async function getRecentOrders(limit) {
+  const recentOrders = await Order.find({ nullDate: null })
+    .sort({ date: -1 })
+    .limit(limit)
+    .lean();
+
+  return Promise.all(
+    recentOrders.map(async (order) => {
+      let customerName = "Cliente no registrado";
+
+      if (order.customer && order.customer.userId) {
+        const user = await User.findById(order.customer.userId, {
+          name: 1,
+          email: 1,
+        });
+
+        if (user) {
+          customerName = user.name || user.email;
+        }
+      } else if (order.customer && order.customer.name) {
+        customerName = order.customer.name;
+      }
+
+      return {
+        id: order.id,
+        customer: customerName,
+        date: formatDate(order.date),
+        status: translateStatus(order.status),
+        total: formatCurrency(order.total),
+      };
+    })
+  );
+}
+
+// Funciones auxiliares para formateo
+function formatCurrency(amount) {
+  return `$${amount.toLocaleString("es-MX")}`;
+}
+
+function formatDate(date) {
+  const options = { day: "numeric", month: "short", year: "numeric" };
+  return new Date(date).toLocaleDateString("es-MX", options);
+}
+
+function translateStatus(status) {
+  const statusMap = {
+    pending: "Pendiente",
+    processing: "Procesando",
+    shipped: "Enviado",
+    delivered: "Completado",
+    cancelled: "Cancelado",
+    failed: "Fallido",
+  };
+
+  return statusMap[status] || status;
+}
+
+// Funciones auxiliares para tracking
 function getTrackingStatusText(status) {
   const statusMap = {
     pending: "Pedido recibido",

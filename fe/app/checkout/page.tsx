@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import UserAuthForm from "@/components/auth/user-auth-form";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Definición de tipos
 type BeerType = "golden" | "red" | "ipa";
@@ -77,118 +78,6 @@ interface Discount {
   appliesTo?: "all" | "beer" | "subscription";
 }
 
-// Datos de productos
-const beers: Beer[] = [
-  {
-    id: "beer-golden",
-    name: "Luna Dorada",
-    type: "Golden Ale",
-    typeId: "golden",
-    price: 3500,
-    image: "/images/golden-ale.png",
-  },
-  {
-    id: "beer-red",
-    name: "Luna Roja",
-    type: "Irish Red Ale",
-    typeId: "red",
-    price: 4500,
-    image: "/images/red-ale.png",
-  },
-  {
-    id: "beer-ipa",
-    name: "Luna Brillante",
-    type: "IPA",
-    typeId: "ipa",
-    price: 5000,
-    image: "/images/ipa.png",
-  },
-];
-
-const subscriptionPlans: Subscription[] = [
-  {
-    id: "sub-basic",
-    name: "Plan Básico",
-    liters: 4,
-    beerType: "golden",
-    features: [
-      "Entrega mensual",
-      "Botella de edición especial gratis",
-      "Acceso a eventos exclusivos",
-    ],
-  },
-  {
-    id: "sub-standard",
-    name: "Plan Estándar",
-    liters: 8,
-    beerType: "golden",
-    features: [
-      "Entrega mensual",
-      "Botella de edición especial gratis",
-      "Acceso a eventos exclusivos",
-      "Vaso personalizado",
-    ],
-    popular: true,
-  },
-  {
-    id: "sub-premium",
-    name: "Plan Premium",
-    liters: 16,
-    beerType: "golden",
-    features: [
-      "Entrega mensual",
-      "Botella de edición especial gratis",
-      "Acceso a eventos exclusivos",
-      "Set de 2 vasos personalizados",
-      "Visita guiada a la cervecería",
-    ],
-  },
-];
-
-// Códigos de descuento disponibles
-const availableDiscounts: Discount[] = [
-  {
-    code: "BIENVENIDO10",
-    type: "percentage",
-    value: 10,
-    validUntil: "31 Dec, 2025",
-    description: "10% de descuento en tu primera compra",
-    appliesTo: "all",
-  },
-  {
-    code: "VERANO25",
-    type: "percentage",
-    value: 25,
-    minPurchase: 10000,
-    validUntil: "28 Feb, 2026",
-    description: "25% de descuento en compras superiores a $10,000",
-    appliesTo: "all",
-  },
-  {
-    code: "CERVEZA500",
-    type: "fixed",
-    value: 500,
-    validUntil: "31 Dec, 2025",
-    description: "$500 de descuento en cervezas individuales",
-    appliesTo: "beer",
-  },
-  {
-    code: "CLUB20",
-    type: "percentage",
-    value: 20,
-    validUntil: "31 Dec, 2025",
-    description: "20% adicional en suscripciones",
-    appliesTo: "subscription",
-  },
-];
-
-// Precios de cervezas
-const beerPrices = {
-  golden: 3500,
-  red: 4500,
-  ipa: 5000,
-};
-
 export default function CheckoutPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showSubscriptionSuggestion, setShowSubscriptionSuggestion] =
@@ -196,25 +85,15 @@ export default function CheckoutPage() {
   const [checkoutStep, setCheckoutStep] = useState<"cart" | "auth" | "payment">(
     "cart"
   );
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
   const [discountError, setDiscountError] = useState("");
   const router = useRouter();
   const { toast } = useToast();
+  const { isAuthenticated, user } = useAuth();
 
   // Usar una referencia para evitar múltiples ejecuciones
   const hasProcessedUrl = React.useRef(false);
-  // Verificar si el usuario está autenticado
-  useEffect(() => {
-    // En una implementación real, esto verificaría el estado de autenticación desde una API o contexto
-    const checkAuth = () => {
-      const fakeAuth = localStorage.getItem("isLoggedIn") === "true";
-      setIsLoggedIn(fakeAuth);
-    };
-
-    checkAuth();
-  }, []);
 
   // Simular que venimos de una página anterior con un producto ya seleccionado
   useEffect(() => {
@@ -226,6 +105,8 @@ export default function CheckoutPage() {
       const productId = params.get("product");
       const productType = params.get("type");
       const beerType = params.get("beer-type") as BeerType | null;
+
+      console.log(productId);
 
       if (productId && productType) {
         // Verificar si ya existe un producto del mismo tipo
@@ -444,9 +325,11 @@ export default function CheckoutPage() {
   const hasSubscription = cart.some((item) => item.type === "subscription");
 
   const handleProceedToCheckout = () => {
-    if (isLoggedIn) {
+    if (isAuthenticated) {
+      // Si el usuario está autenticado, ir directamente al pago
       setCheckoutStep("payment");
     } else {
+      // Si no está autenticado, mostrar opciones de autenticación
       setCheckoutStep("auth");
     }
   };
@@ -1200,7 +1083,14 @@ export default function CheckoutPage() {
                             className="bg-amber-600 hover:bg-amber-700 rounded-full"
                             asChild
                           >
-                            <Link href="/auth/login">Ir a iniciar sesión</Link>
+                            <Link
+                              href={`/auth/login?redirect=${encodeURIComponent(
+                                window.location.pathname +
+                                  window.location.search
+                              )}`}
+                            >
+                              Ir a iniciar sesión
+                            </Link>
                           </Button>
                           <p className="text-sm text-muted-foreground">
                             ¿No tienes una cuenta?{" "}
@@ -1290,16 +1180,51 @@ export default function CheckoutPage() {
                 <Card className="rounded-xl overflow-hidden">
                   <CardContent className="p-6">
                     <h3 className="text-xl font-bold mb-6">Método de pago</h3>
-                    <Button className="w-full h-12 rounded-full bg-[#009ee3] hover:bg-[#008fcf] flex items-center justify-center gap-2">
-                      <Image
-                        src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/logo-mercadopago.png"
-                        alt="Mercado Pago"
-                        width={100}
-                        height={24}
-                        className="h-6 w-auto"
-                      />
-                      <span>Pagar con Mercado Pago</span>
-                    </Button>
+
+                    {isAuthenticated ? (
+                      <div className="space-y-6">
+                        <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-6">
+                          <div className="flex items-center gap-2">
+                            <Check className="h-5 w-5 text-green-600" />
+                            <p className="text-green-800">
+                              Sesión iniciada como{" "}
+                              <span className="font-bold">
+                                {user?.name || user?.email || "Usuario"}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <Button className="w-full h-12 rounded-full bg-[#009ee3] hover:bg-[#008fcf] text-white flex items-center justify-center gap-2">
+                          <Image
+                            src="logo-mercado-pago-icone-512.png"
+                            alt="Mercado Pago"
+                            width={100}
+                            height={24}
+                            className="h-6 w-auto"
+                          />
+                          <span>Pagar con Mercado Pago</span>
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-amber-600">
+                          Por favor inicia sesión para continuar con el pago.
+                        </p>
+                        <Button
+                          className="w-full rounded-full bg-amber-600 hover:bg-amber-700"
+                          asChild
+                        >
+                          <Link
+                            href={`/auth/login?redirect=${encodeURIComponent(
+                              window.location.pathname
+                            )}`}
+                          >
+                            Iniciar sesión
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

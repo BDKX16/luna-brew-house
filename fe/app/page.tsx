@@ -26,8 +26,70 @@ import { useState, useRef, useEffect } from "react";
 import UserNav from "@/components/user-nav";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { getBeers, getSubscriptionPlans } from "@/services/public";
+import useFetchAndLoad from "@/hooks/useFetchAndLoad";
+import LoadingSpinner from "@/components/ui/loading-spinner";
+
+// Definición de tipos
+interface Beer {
+  id: string;
+  name: string;
+  type: string;
+  typeId: string;
+  price: number;
+  image: string;
+  description: string;
+}
+
+interface Subscription {
+  id: string;
+  name: string;
+  liters: number;
+  price: number;
+  features: string[];
+  popular?: boolean;
+}
 
 export default function Home() {
+  const [beers, setBeers] = useState<Beer[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [loadingBeers, setLoadingBeers] = useState(true);
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { callEndpoint } = useFetchAndLoad();
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        // Cargar cervezas
+        const beersResponse = await callEndpoint(getBeers());
+        if (beersResponse && beersResponse.data && beersResponse.data.beers) {
+          setBeers(beersResponse.data.beers);
+        }
+      } catch (error) {
+        console.error("Error al cargar cervezas:", error);
+        setError("No se pudieron cargar los productos.");
+      } finally {
+        setLoadingBeers(false);
+      }
+
+      try {
+        // Cargar planes de suscripción
+        const subsResponse = await callEndpoint(getSubscriptionPlans());
+        if (subsResponse && subsResponse.data && subsResponse.data.subscriptions) {
+          setSubscriptions(subsResponse.data.subscriptions);
+        }
+      } catch (error) {
+        console.error("Error al cargar planes de suscripción:", error);
+        setError("No se pudieron cargar los planes de suscripción.");
+      } finally {
+        setLoadingSubscriptions(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -193,75 +255,57 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                {
-                  id: "beer-golden",
-                  name: "Luna Dorada",
-                  type: "Golden Ale",
-                  price: 3500,
-                  description:
-                    "Suave y refrescante, con notas cítricas y un final limpio. Perfecta para días soleados y momentos de relax.",
-                  image: "/images/golden-ale.png",
-                },
-                {
-                  id: "beer-red",
-                  name: "Luna Roja",
-                  type: "Irish Red Ale",
-                  price: 4500,
-                  description:
-                    "Maltosa con carácter, notas de caramelo y un equilibrio perfecto. Ideal para acompañar comidas y conversaciones.",
-                  image: "/images/red-ale.png",
-                },
-                {
-                  id: "beer-ipa",
-                  name: "Luna Brillante",
-                  type: "IPA",
-                  price: 5000,
-                  description:
-                    "Intensa y aromática, con un perfil lupulado distintivo. Para los amantes de sabores audaces y experiencias intensas.",
-                  image: "/images/ipa.png",
-                },
-              ].map((beer, index) => (
-                <Card
-                  key={index}
-                  className="overflow-hidden rounded-3xl h-full"
-                >
-                  <div className="h-72 relative">
-                    <Image
-                      src={beer.image || "/placeholder.svg"}
-                      alt={beer.name}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  <CardContent className="p-6 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-xl font-bold">{beer.name}</h3>
-                        <p className="text-sm text-amber-700 font-medium">
-                          {beer.type}
-                        </p>
-                      </div>
-                      <div className="bg-amber-100 px-3 py-1 rounded-full">
-                        <p className="text-amber-800 font-bold">
-                          ${beer.price}/litro
-                        </p>
-                      </div>
+            {loadingBeers ? (
+              <div className="flex justify-center items-center py-12">
+                <LoadingSpinner />
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <p className="text-red-500">{error}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {beers.map((beer) => (
+                  <Card
+                    key={beer.id}
+                    className="overflow-hidden rounded-3xl h-full"
+                  >
+                    <div className="h-72 relative">
+                      <Image
+                        src={beer.image || "/placeholder.svg"}
+                        alt={beer.name}
+                        fill
+                        className="object-cover"
+                      />
                     </div>
-                    <p className="text-muted-foreground">{beer.description}</p>
-                    <Button
-                      className="w-full mt-2 bg-amber-600 hover:bg-amber-700 rounded-full"
-                      asChild
-                    >
-                      <Link href={`/checkout?product=${beer.id}&type=beer`}>
-                        Comprar ahora
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    <CardContent className="p-6 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-xl font-bold">{beer.name}</h3>
+                          <p className="text-sm text-amber-700 font-medium">
+                            {beer.type}
+                          </p>
+                        </div>
+                        <div className="bg-amber-100 px-3 py-1 rounded-full">
+                          <p className="text-amber-800 font-bold">
+                            ${beer.price}/litro
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-muted-foreground">{beer.description}</p>
+                      <Button
+                        className="w-full mt-2 bg-amber-600 hover:bg-amber-700 rounded-full"
+                        asChild
+                      >
+                        <Link href={`/checkout?product=${beer.id}&type=beer`}>
+                          Comprar ahora
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
             {/* Special Edition Beer */}
             <div className="mt-16">
@@ -523,7 +567,17 @@ export default function Home() {
               </Alert>
             </div>
 
-            <SubscriptionPlans />
+            {loadingSubscriptions ? (
+              <div className="flex justify-center items-center py-12">
+                <LoadingSpinner />
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <p className="text-red-500">{error}</p>
+              </div>
+            ) : (
+              <SubscriptionPlans subscriptions={subscriptions} />
+            )}
           </div>
         </section>
 
@@ -890,10 +944,8 @@ export default function Home() {
   );
 }
 
-function SubscriptionPlans() {
-  const [selectedBeerType4L, setSelectedBeerType4L] = useState("golden");
-  const [selectedBeerType8L, setSelectedBeerType8L] = useState("golden");
-  const [selectedBeerType16L, setSelectedBeerType16L] = useState("golden");
+function SubscriptionPlans({ subscriptions }: { subscriptions: Subscription[] }) {
+  const [selectedBeerTypes, setSelectedBeerTypes] = useState<Record<string, string>>({});
 
   const beerPrices = {
     golden: 3500,
@@ -901,65 +953,49 @@ function SubscriptionPlans() {
     ipa: 5000,
   };
 
-  const calculatePrice = (liters, beerType) => {
-    const regularPrice = beerPrices[beerType] * liters;
+  // Inicializar los tipos de cerveza seleccionados para cada plan
+  useEffect(() => {
+    const initialBeerTypes: Record<string, string> = {};
+    subscriptions.forEach(plan => {
+      initialBeerTypes[plan.id] = "golden"; // Valor por defecto
+    });
+    setSelectedBeerTypes(initialBeerTypes);
+  }, [subscriptions]);
+
+  const calculatePrice = (liters: number, beerType: string) => {
+    const regularPrice = beerPrices[beerType as keyof typeof beerPrices] * liters;
     const discountedPrice = regularPrice * 0.8; // 20% discount
     return Math.round(discountedPrice);
   };
 
-  const calculatePricePerLiter = (liters, beerType) => {
+  const calculatePricePerLiter = (liters: number, beerType: string) => {
     const totalPrice = calculatePrice(liters, beerType);
     return Math.round(totalPrice / liters);
   };
 
-  const plans = [
-    {
-      id: "sub-basic",
-      name: "Plan Básico",
-      liters: 4,
-      selectedBeer: selectedBeerType4L,
-      setSelectedBeer: setSelectedBeerType4L,
-      features: [
-        "Entrega mensual",
-        "Botella de edición especial gratis",
-        "Acceso a eventos exclusivos",
-      ],
-    },
-    {
-      id: "sub-standard",
-      name: "Plan Estándar",
-      liters: 8,
-      selectedBeer: selectedBeerType8L,
-      setSelectedBeer: setSelectedBeerType8L,
-      features: [
-        "Entrega mensual",
-        "Botella de edición especial gratis",
-        "Acceso a eventos exclusivos",
-        "Vaso personalizado",
-      ],
-      popular: true,
-    },
-    {
-      id: "sub-premium",
-      name: "Plan Premium",
-      liters: 16,
-      selectedBeer: selectedBeerType16L,
-      setSelectedBeer: setSelectedBeerType16L,
-      features: [
-        "Entrega mensual",
-        "Botella de edición especial gratis",
-        "Acceso a eventos exclusivos",
-        "Set de 2 vasos personalizados",
-        "Visita guiada a la cervecería",
-      ],
-    },
-  ];
+  const updateBeerType = (planId: string, beerType: string) => {
+    setSelectedBeerTypes(prev => ({
+      ...prev,
+      [planId]: beerType
+    }));
+  };
+
+  // Si no hay planes, mostrar mensaje
+  if (!subscriptions || subscriptions.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-amber-800">
+          No hay planes de suscripción disponibles en este momento.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-      {plans.map((plan, index) => (
+      {subscriptions.map((plan) => (
         <div
-          key={index}
+          key={plan.id}
           className={`relative rounded-3xl overflow-hidden border ${
             plan.popular
               ? "border-amber-500 shadow-lg shadow-amber-100"
@@ -982,15 +1018,15 @@ function SubscriptionPlans() {
             <div className="space-y-3">
               <div className="space-y-1">
                 <label
-                  htmlFor={`beer-type-${plan.liters}`}
+                  htmlFor={`beer-type-${plan.id}`}
                   className="text-sm font-medium"
                 >
                   Selecciona tu variedad:
                 </label>
                 <Select
-                  value={plan.selectedBeer}
-                  onValueChange={plan.setSelectedBeer}
-                  id={`beer-type-${plan.liters}`}
+                  value={selectedBeerTypes[plan.id] || "golden"}
+                  onValueChange={(value) => updateBeerType(plan.id, value)}
+                  id={`beer-type-${plan.id}`}
                 >
                   <SelectTrigger className="w-full rounded-full">
                     <SelectValue placeholder="Selecciona una variedad" />
@@ -1019,11 +1055,11 @@ function SubscriptionPlans() {
                           $
                           {calculatePricePerLiter(
                             plan.liters,
-                            plan.selectedBeer
+                            selectedBeerTypes[plan.id] || "golden"
                           )}
                         </span>
                         <span className="text-sm line-through text-amber-700/60">
-                          ${beerPrices[plan.selectedBeer]}
+                          ${beerPrices[selectedBeerTypes[plan.id] as keyof typeof beerPrices || "golden"]}
                         </span>
                       </div>
                       <p className="text-xs text-amber-600 font-medium">
@@ -1035,7 +1071,7 @@ function SubscriptionPlans() {
                         Total mensual
                       </p>
                       <p className="text-xl font-bold text-amber-700">
-                        ${calculatePrice(plan.liters, plan.selectedBeer)}
+                        ${calculatePrice(plan.liters, selectedBeerTypes[plan.id] || "golden")}
                       </p>
                       <p className="text-xs text-amber-600">
                         por {plan.liters} litros
@@ -1071,7 +1107,7 @@ function SubscriptionPlans() {
               asChild
             >
               <Link
-                href={`/checkout?product=${plan.id}&type=subscription&beer-type=${plan.selectedBeer}`}
+                href={`/checkout?product=${plan.id}&type=subscription&beer-type=${selectedBeerTypes[plan.id] || "golden"}`}
               >
                 Suscribirse ahora
               </Link>

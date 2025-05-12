@@ -16,6 +16,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
+import useFetchAndLoad from "@/hooks/useFetchAndLoad";
+import { register } from "@/services/public";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -25,7 +27,7 @@ export default function RegisterPage() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const { loading, callEndpoint } = useFetchAndLoad();
   const router = useRouter();
 
   const validatePassword = () => {
@@ -56,7 +58,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const success = await register(name, email, password);
+      const success = await callEndpoint(register(name, email, password));
 
       if (success) {
         // Redirigir al usuario a login con un parámetro para mostrar mensaje de éxito

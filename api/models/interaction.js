@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const { create } = require("./content");
 
 const Schema = mongoose.Schema;
 
@@ -9,26 +8,11 @@ const InteractionSchema = new Schema({
     ref: "User",
     required: false,
   },
-  videoId: {
-    type: Schema.Types.ObjectId,
-    ref: "Content",
-    required: false,
-  },
+
   type: {
     type: String,
     required: true,
-    enum: [
-      "like",
-      "dislike",
-      "visita",
-      "visita-trailer",
-      "visita-web",
-      "comment",
-      "share",
-      "save",
-      "report",
-      "favorite",
-    ],
+    enum: ["landing", "checkout"],
   },
   state: {
     type: Boolean,

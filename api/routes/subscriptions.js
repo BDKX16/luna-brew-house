@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { checkAuth, checkRole } = require("../middlewares/authentication");
+const trackInteraction = require("../middlewares/interaction-tracker");
 const UserSubscription = require("../models/subscription");
 const { Subscription } = require("../models/products");
 const Order = require("../models/order");
@@ -10,46 +11,56 @@ const Order = require("../models/order");
  */
 
 // Obtener todas las suscripciones del usuario autenticado
-router.get("/my-subscriptions", checkAuth, async (req, res) => {
-  try {
-    const userId = req.userData._id;
+router.get(
+  "/my-subscriptions",
+  checkAuth,
+  trackInteraction("landing", true),
+  async (req, res) => {
+    try {
+      const userId = req.userData._id;
 
-    const userSubscriptions = await UserSubscription.find({
-      userId,
-      nullDate: null,
-    }).sort({ startDate: -1 });
+      const userSubscriptions = await UserSubscription.find({
+        userId,
+        nullDate: null,
+      }).sort({ startDate: -1 });
 
-    res.status(200).json({ subscriptions: userSubscriptions });
-  } catch (error) {
-    console.error("Error al obtener suscripciones:", error);
-    res.status(500).json({ error: "Error al obtener las suscripciones" });
+      res.status(200).json({ subscriptions: userSubscriptions });
+    } catch (error) {
+      console.error("Error al obtener suscripciones:", error);
+      res.status(500).json({ error: "Error al obtener las suscripciones" });
+    }
   }
-});
+);
 
 // Obtener detalle de una suscripción específica
-router.get("/my-subscriptions/:id", checkAuth, async (req, res) => {
-  try {
-    const userId = req.userData._id;
-    const subscriptionId = req.params.id;
+router.get(
+  "/my-subscriptions/:id",
+  checkAuth,
+  trackInteraction("landing", true),
+  async (req, res) => {
+    try {
+      const userId = req.userData._id;
+      const subscriptionId = req.params.id;
 
-    const subscription = await UserSubscription.findOne({
-      id: subscriptionId,
-      userId,
-      nullDate: null,
-    });
+      const subscription = await UserSubscription.findOne({
+        id: subscriptionId,
+        userId,
+        nullDate: null,
+      });
 
-    if (!subscription) {
-      return res.status(404).json({ error: "Suscripción no encontrada" });
+      if (!subscription) {
+        return res.status(404).json({ error: "Suscripción no encontrada" });
+      }
+
+      res.status(200).json({ subscription });
+    } catch (error) {
+      console.error("Error al obtener detalles de la suscripción:", error);
+      res
+        .status(500)
+        .json({ error: "Error al obtener los detalles de la suscripción" });
     }
-
-    res.status(200).json({ subscription });
-  } catch (error) {
-    console.error("Error al obtener detalles de la suscripción:", error);
-    res
-      .status(500)
-      .json({ error: "Error al obtener los detalles de la suscripción" });
   }
-});
+);
 
 // Cambiar el estado de una suscripción (pausar/reactivar)
 router.patch("/my-subscriptions/:id/status", checkAuth, async (req, res) => {

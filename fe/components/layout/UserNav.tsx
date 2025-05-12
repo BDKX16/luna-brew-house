@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { User, LogOut, ShoppingCart } from "lucide-react";
+import { User, LogOut, ShoppingCart, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ export default function UserNav() {
   const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const isAdmin = user?.role === "admin";
 
   const handleLogout = () => {
     logout();
@@ -66,6 +67,23 @@ export default function UserNav() {
             <DropdownMenuItem asChild>
               <Link href="/perfil/suscripciones">Mis suscripciones</Link>
             </DropdownMenuItem>
+
+            {/* Admin panel link - only for admin users */}
+            {isAdmin && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  asChild
+                  className="text-amber-700 font-medium"
+                >
+                  <Link href="/admin" className="flex items-center">
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Panel de Administración
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
+
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-red-500 cursor-pointer"

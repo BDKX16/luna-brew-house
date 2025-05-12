@@ -1,8 +1,8 @@
-import { loadAbort } from "../utils/load-abort-controller";
+import { loadAbort } from "@/utils/load-abort-controller";
 import axios from "axios";
-import store from "../redux/store";
+import { store } from "../redux/store";
 
-import { enqueueSnackbar } from "notistack";
+const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 const getAxiosHeaders = () => {
   const state = store.getState();
@@ -30,7 +30,7 @@ export const addContent = (data) => {
   }
   return {
     call: axios
-      .post(import.meta.env.VITE_BASE_URL + "/admin/content", data, headers, {
+      .post(process.env.NEXT_PUBLIC_API_URL + "/admin/content", data, headers, {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -55,7 +55,7 @@ export const getAdminBeers = () => {
 
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + "/admin/beers", headers, {
+      .get(process.env.NEXT_PUBLIC_API_URL + "/admin/beers", headers, {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -76,9 +76,13 @@ export const getAdminBeerById = (beerId) => {
 
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + `/admin/beers/${beerId}`, headers, {
-        signal: controller.signal,
-      })
+      .get(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/beers/${beerId}`,
+        headers,
+        {
+          signal: controller.signal,
+        }
+      )
       .catch((error) => {
         notifyError(error);
       }),
@@ -97,9 +101,14 @@ export const createBeer = (beerData) => {
 
   return {
     call: axios
-      .post(import.meta.env.VITE_BASE_URL + "/admin/beers", beerData, headers, {
-        signal: controller.signal,
-      })
+      .post(
+        process.env.NEXT_PUBLIC_API_URL + "/admin/beers",
+        beerData,
+        headers,
+        {
+          signal: controller.signal,
+        }
+      )
       .catch((error) => {
         notifyError(error);
       }),
@@ -119,7 +128,7 @@ export const updateBeer = (beerId, beerData) => {
   return {
     call: axios
       .put(
-        import.meta.env.VITE_BASE_URL + `/admin/beers/${beerId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/beers/${beerId}`,
         beerData,
         headers,
         { signal: controller.signal }
@@ -143,7 +152,7 @@ export const deleteBeer = (beerId) => {
   return {
     call: axios
       .delete(
-        import.meta.env.VITE_BASE_URL + `/admin/beers/${beerId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/beers/${beerId}`,
         headers,
         { signal: controller.signal }
       )
@@ -158,7 +167,7 @@ export const deleteBeer = (beerId) => {
  * GESTIÓN DE PRODUCTOS - SUSCRIPCIONES
  ************/
 
-// Obtener todos los planes de suscripción
+// Obtener todos los planes de suscripción (Para el panel de administración)
 export const getAdminSubscriptionPlans = () => {
   const controller = loadAbort();
   const headers = getAxiosHeaders();
@@ -166,12 +175,15 @@ export const getAdminSubscriptionPlans = () => {
   if (!headers) {
     return;
   }
-
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + "/admin/subscriptions", headers, {
-        signal: controller.signal,
-      })
+      .get(
+        process.env.NEXT_PUBLIC_API_URL + "/admin/subscription-plans",
+        headers,
+        {
+          signal: controller.signal,
+        }
+      )
       .catch((error) => {
         notifyError(error);
       }),
@@ -191,7 +203,7 @@ export const getAdminSubscriptionPlanById = (planId) => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL + `/admin/subscriptions/${planId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/subscription-plan/${planId}`,
         headers,
         {
           signal: controller.signal,
@@ -216,7 +228,7 @@ export const createSubscriptionPlan = (planData) => {
   return {
     call: axios
       .post(
-        import.meta.env.VITE_BASE_URL + "/admin/subscriptions",
+        process.env.NEXT_PUBLIC_API_URL + "/admin/subscriptions",
         planData,
         headers,
         { signal: controller.signal }
@@ -240,7 +252,7 @@ export const updateSubscriptionPlan = (planId, planData) => {
   return {
     call: axios
       .put(
-        import.meta.env.VITE_BASE_URL + `/admin/subscriptions/${planId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/subscriptions/${planId}`,
         planData,
         headers,
         { signal: controller.signal }
@@ -264,7 +276,7 @@ export const deleteSubscriptionPlan = (planId) => {
   return {
     call: axios
       .delete(
-        import.meta.env.VITE_BASE_URL + `/admin/subscriptions/${planId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/subscriptions/${planId}`,
         headers,
         { signal: controller.signal }
       )
@@ -290,7 +302,7 @@ export const getAdminDiscounts = () => {
 
   return {
     call: axios
-      .get(import.meta.env.VITE_BASE_URL + "/admin/discounts", headers, {
+      .get(process.env.NEXT_PUBLIC_API_URL + "/admin/discounts", headers, {
         signal: controller.signal,
       })
       .catch((error) => {
@@ -312,7 +324,7 @@ export const getAdminDiscountById = (discountId) => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL + `/admin/discounts/${discountId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/discounts/${discountId}`,
         headers,
         {
           signal: controller.signal,
@@ -337,7 +349,7 @@ export const createDiscount = (discountData) => {
   return {
     call: axios
       .post(
-        import.meta.env.VITE_BASE_URL + "/admin/discounts",
+        process.env.NEXT_PUBLIC_API_URL + "/admin/discounts",
         discountData,
         headers,
         { signal: controller.signal }
@@ -361,7 +373,7 @@ export const updateDiscount = (discountId, discountData) => {
   return {
     call: axios
       .put(
-        import.meta.env.VITE_BASE_URL + `/admin/discounts/${discountId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/discounts/${discountId}`,
         discountData,
         headers,
         { signal: controller.signal }
@@ -385,7 +397,7 @@ export const deleteDiscount = (discountId) => {
   return {
     call: axios
       .delete(
-        import.meta.env.VITE_BASE_URL + `/admin/discounts/${discountId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/discounts/${discountId}`,
         headers,
         { signal: controller.signal }
       )
@@ -408,7 +420,8 @@ export const toggleDiscount = (discountId) => {
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL + `/admin/discounts/${discountId}/toggle`,
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/discounts/${discountId}/toggle`,
         {},
         headers,
         { signal: controller.signal }
@@ -448,7 +461,7 @@ export const getAdminOrders = (filters = {}) => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL + `/admin/orders${queryString}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/orders${queryString}`,
         headers,
         {
           signal: controller.signal,
@@ -473,7 +486,7 @@ export const getAdminOrderById = (orderId) => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL + `/admin/orders/${orderId}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/orders/${orderId}`,
         headers,
         {
           signal: controller.signal,
@@ -498,7 +511,7 @@ export const updateOrderStatus = (orderId, status) => {
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL + `/admin/orders/${orderId}/status`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/orders/${orderId}/status`,
         { status },
         headers,
         { signal: controller.signal }
@@ -522,7 +535,7 @@ export const updateOrderDelivery = (orderId, deliveryTime) => {
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL + `/admin/orders/${orderId}/delivery`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/orders/${orderId}/delivery`,
         { deliveryTime },
         headers,
         { signal: controller.signal }
@@ -546,7 +559,7 @@ export const cancelOrder = (orderId, cancellationReason) => {
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL + `/admin/orders/${orderId}/cancel`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/orders/${orderId}/cancel`,
         { cancellationReason },
         headers,
         { signal: controller.signal }
@@ -570,7 +583,7 @@ export const getAdminOrderStats = (period = "month") => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL + `/admin/stats?period=${period}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/stats?period=${period}`,
         headers,
         {
           signal: controller.signal,
@@ -610,7 +623,7 @@ export const getAdminUserSubscriptions = (filters = {}) => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL + `/admin/subscriptions${queryString}`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/subscriptions${queryString}`,
         headers,
         {
           signal: controller.signal,
@@ -635,7 +648,7 @@ export const getAdminUserSubscriptionById = (subscriptionId) => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL +
+        process.env.NEXT_PUBLIC_API_URL +
           `/admin/subscriptions/${subscriptionId}`,
         headers,
         {
@@ -665,7 +678,7 @@ export const updateAdminSubscriptionStatus = (
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL +
+        process.env.NEXT_PUBLIC_API_URL +
           `/admin/subscriptions/${subscriptionId}/status`,
         { status, reason },
         headers,
@@ -690,7 +703,7 @@ export const addSubscriptionDelivery = (subscriptionId, deliveryData) => {
   return {
     call: axios
       .post(
-        import.meta.env.VITE_BASE_URL +
+        process.env.NEXT_PUBLIC_API_URL +
           `/admin/subscriptions/${subscriptionId}/deliveries`,
         deliveryData,
         headers,
@@ -715,7 +728,7 @@ export const updateDeliveryStatus = (subscriptionId, deliveryIndex, status) => {
   return {
     call: axios
       .patch(
-        import.meta.env.VITE_BASE_URL +
+        process.env.NEXT_PUBLIC_API_URL +
           `/admin/subscriptions/${subscriptionId}/deliveries/${deliveryIndex}`,
         { status },
         headers,
@@ -740,7 +753,7 @@ export const getSubscriptionStats = () => {
   return {
     call: axios
       .get(
-        import.meta.env.VITE_BASE_URL + `/admin/subscriptions/stats`,
+        process.env.NEXT_PUBLIC_API_URL + `/admin/subscriptions/stats`,
         headers,
         {
           signal: controller.signal,
@@ -754,18 +767,85 @@ export const getSubscriptionStats = () => {
 };
 
 /**********
+ * Dashboard Analytics
+ ************/
+
+export const getDashboardStats = () => {
+  const controller = loadAbort();
+
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .get(`${baseUrl}/admin/dashboard`, headers, {
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+export const getTopProducts = (limit = 5) => {
+  const controller = loadAbort();
+
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+  return {
+    call: axios
+      .get(`${baseUrl}/admin/dashboard/top-products?limit=${limit}`, headers, {
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+export const getRecentOrders = (limit = 5) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+  return {
+    call: axios
+      .get(`${baseUrl}/admin/dashboard/recent-orders?limit=${limit}`, headers, {
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+/**********
  * FUNCTIONS
  ************/
 
 const notifyError = (error) => {
   if (error.status === 401) {
-    enqueueSnackbar("No autorizado", {
-      variant: "error",
-    });
+    // enqueueSnackbar("No autorizado", {
+    //   variant: "error",
+    // });
     window.location.href = "/login";
   } else if (error.status !== 200) {
-    enqueueSnackbar(error.response.data.error.message, {
-      variant: "error",
-    });
+    // enqueueSnackbar(
+    //   error.response?.data?.error?.message || "Error desconocido",
+    //   {
+    //     variant: "error",
+    //   }
+    // );
   }
 };
