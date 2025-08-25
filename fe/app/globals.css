@@ -74,3 +74,83 @@
     text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
   }
 }
+
+/* Estilos y animaciones para ingredientes flotantes */
+.bubble-ingredient {
+  height: fit-content;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  z-index: 10;
+  cursor: grab;
+  touch-action: none; /* Mejora interacción táctil */
+  will-change: transform; /* Optimización de rendimiento */
+}
+
+.bubble-ingredient:active {
+  cursor: grabbing;
+}
+
+.bubble-ingredient-inner {
+  position: relative;
+  display: block;
+  border-radius: 50%;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 6px 20px rgba(205, 164, 94, 0.4),
+    inset 0 0 20px rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+.bubble-ingredient-inner:hover {
+  box-shadow: 0 8px 25px rgba(205, 164, 94, 0.5),
+    inset 0 0 25px rgba(255, 255, 255, 0.8);
+}
+
+.bubble-ingredient-inner::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 20%;
+  height: 20%;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  z-index: 2;
+  filter: blur(1px);
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-15px) rotate(3deg);
+  }
+  66% {
+    transform: translateY(-5px) rotate(-2deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+/* Estilos específicos para móviles */
+@media (max-width: 768px) {
+  .bubble-ingredient {
+    position: static; /* Evita posicionamiento absoluto en móviles */
+    margin: 1rem;
+    display: inline-flex;
+  }
+  
+  #ingredients-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+}

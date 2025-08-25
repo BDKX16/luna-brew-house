@@ -29,6 +29,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getBeers, getSubscriptionPlans } from "@/services/public";
 import useFetchAndLoad from "@/hooks/useFetchAndLoad";
 import LoadingSpinner from "@/components/ui/loading-spinner";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 
 // Definición de tipos
 interface Beer {
@@ -39,6 +40,7 @@ interface Beer {
   price: number;
   image: string;
   description: string;
+  stock: number;
 }
 
 interface Subscription {
@@ -50,6 +52,147 @@ interface Subscription {
   popular?: boolean;
 }
 
+interface BubbleProps {
+  src: string;
+  alt: string;
+  size: number;
+  position: {
+    top?: string;
+    bottom?: string;
+    left?: string;
+    right?: string;
+  };
+  delay: number;
+  duration: number;
+}
+
+// Componente para burbujas de ingredientes con framer-motion
+const BubbleIngredient = ({
+  src,
+  alt,
+  size,
+  position,
+  delay,
+  duration,
+}: BubbleProps) => {
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  // Creamos springs para un movimiento más suave y natural
+  const springConfig = { damping: 15, stiffness: 150 };
+  const x = useSpring(mouseX, springConfig);
+  const y = useSpring(mouseY, springConfig);
+
+  // Referencia para el elemento padre
+  const bubbleRef = useRef<HTMLDivElement>(null);
+
+  // Efecto para gestionar el tracking del mouse
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!bubbleRef.current) return;
+
+      const { left, top, width, height } = bubbleRef.current.getBoundingClientRect();
+      const centerX = left + width / 2;
+      const centerY = top + height / 2;
+
+      // Calcular distancia entre el mouse y el centro de la burbuja
+      const distanceX = e.clientX - centerX;
+      const distanceY = e.clientY - centerY;
+      const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+
+      // Solo aplicar repulsión si el mouse está suficientemente cerca
+      const maxDistance = 300; // Aumentar la distancia de influencia
+      if (distance < maxDistance) {
+        // Fuerza del efecto basado en la cercanía
+        const force = maxDistance / Math.max(10, distance);
+        // Dirección opuesta al mouse
+        const directionX = distanceX / distance;
+        const directionY = distanceY / distance;
+
+        // Aplicar la fuerza en la dirección opuesta con más intensidad
+        // Esto permite que las burbujas se alejen más del cursor
+        mouseX.set(-directionX * force * 40);
+        mouseY.set(-directionY * force * 40);
+      } else {
+        // Regresar a posición original gradualmente con un retraso
+        setTimeout(() => {
+          mouseX.set(0);
+          mouseY.set(0);
+        }, 500); // Añade un retraso para un movimiento más natural
+      }
+    };
+
+    const handleMouseLeave = () => {
+      // Regresar a posición original gradualmente
+      setTimeout(() => {
+        mouseX.set(0);
+        mouseY.set(0);
+      }, 500);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, [mouseX, mouseY]);
+
+  return (
+    <motion.div
+      ref={bubbleRef}
+      className="bubble-ingredient hidden md:block"
+      style={{
+        ...position,
+        display: "inline-flex",
+        position: "absolute",
+        zIndex: 10,
+      }}
+      animate={{
+        y: ["0px", "-15px", "0px"],
+        rotate: ["0deg", "3deg", "-2deg", "0deg"],
+      }}
+      transition={{
+        duration: duration,
+        repeat: Infinity,
+        ease: "easeInOut",
+        delay: delay,
+      }}
+      whileHover={{ 
+        scale: 1.1,
+        transition: { duration: 0.3 }
+      }}
+      drag // Permite arrastrar la burbuja
+      dragConstraints={{
+        top: -150,
+        left: -150,
+        right: 150,
+        bottom: 150,
+      }}
+      dragElastic={0.8} // Hace que la burbuja rebote cuando la sueltas
+      dragTransition={{ bounceStiffness: 200, bounceDamping: 10 }}
+    >
+      <motion.div
+        className="bubble-ingredient-inner"
+        style={{
+          x,
+          y,
+        }}
+      >
+        <Image
+          src={src}
+          alt={alt}
+          width={size}
+          height={size}
+          className="rounded-full"
+          draggable={false}
+        />
+      </motion.div>
+    </motion.div>
+  );
+};
+
 export default function Home() {
   const [beers, setBeers] = useState<Beer[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -57,6 +200,9 @@ export default function Home() {
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { callEndpoint } = useFetchAndLoad();
+
+  // Ya no necesitamos este efecto a nivel de sección porque 
+  // ahora cada burbuja maneja su propia interacción de manera independiente
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -76,7 +222,11 @@ export default function Home() {
       try {
         // Cargar planes de suscripción
         const subsResponse = await callEndpoint(getSubscriptionPlans());
-        if (subsResponse && subsResponse.data && subsResponse.data.subscriptions) {
+        if (
+          subsResponse &&
+          subsResponse.data &&
+          subsResponse.data.subscriptions
+        ) {
           setSubscriptions(subsResponse.data.subscriptions);
         }
       } catch (error) {
@@ -268,14 +418,23 @@ export default function Home() {
                 {beers.map((beer) => (
                   <Card
                     key={beer.id}
-                    className="overflow-hidden rounded-3xl h-full"
+                    className="overflow-hidden rounded-3xl h-full relative"
                   >
+                    {beer.stock === 0 && (
+                      <div className="absolute top-3 right-3 z-10">
+                        <Badge className="bg-red-500 hover:bg-red-600 px-3 py-1 text-white font-bold">
+                          Agotada
+                        </Badge>
+                      </div>
+                    )}
                     <div className="h-72 relative">
                       <Image
                         src={beer.image || "/placeholder.svg"}
                         alt={beer.name}
                         fill
-                        className="object-cover"
+                        className={`object-cover ${
+                          beer.stock === 0 ? "opacity-70" : ""
+                        }`}
                       />
                     </div>
                     <CardContent className="p-6 space-y-2">
@@ -292,15 +451,29 @@ export default function Home() {
                           </p>
                         </div>
                       </div>
-                      <p className="text-muted-foreground">{beer.description}</p>
-                      <Button
-                        className="w-full mt-2 bg-amber-600 hover:bg-amber-700 rounded-full"
-                        asChild
-                      >
-                        <Link href={`/checkout?product=${beer.id}&type=beer`}>
-                          Comprar ahora
-                        </Link>
-                      </Button>
+
+                      <p className="text-muted-foreground">
+                        {beer.description}
+                      </p>
+                      {beer.stock === 0 ? (
+                        <>
+                          <Button
+                            className="w-full mt-2 bg-gray-400 rounded-full cursor-not-allowed"
+                            disabled
+                          >
+                            Comprar ahora
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          className="w-full mt-2 bg-amber-600 hover:bg-amber-700 rounded-full"
+                          asChild
+                        >
+                          <Link href={`/checkout?product=${beer.id}&type=beer`}>
+                            Comprar ahora
+                          </Link>
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -369,171 +542,260 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Beneficio 1: Antioxidantes */}
-              <div className="bg-white rounded-3xl p-6 shadow-md hover:shadow-lg transition-shadow">
-                <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-amber-600"
-                  >
-                    <path d="M8.4 10.6a4 4 0 1 0 6.3 4.3 4 4 0 0 0-6.3-4.3"></path>
-                    <path d="m13 8.3-2.1-5.6a1 1 0 0 0-1.8 0L7 8.3"></path>
-                    <path d="m9 6.2 1 2.8"></path>
-                    <path d="M16 18a4 4 0 0 0 4-4"></path>
-                    <path d="m12 12 1.3 1.5"></path>
-                    <path d="M19 16c.6 0 1 .4 1 1v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1c0-.6.4-1 1-1"></path>
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-2">
-                  Mayor concentración de antioxidantes
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  Nuestras cervezas contienen niveles más altos de polifenoles y
-                  flavonoides, compuestos antioxidantes que ayudan a combatir el
-                  estrés oxidativo y la inflamación. Estos antioxidantes pueden
-                  contribuir a la salud cardiovascular y a la prevención de
-                  enfermedades neurodegenerativas.
-                </p>
-                <div className="text-sm text-amber-700">
-                  Fuentes: elviejoartesano.com, TuChecador App
-                </div>
+            {/* Contenedor con posicionamiento relativo para los ingredientes flotantes */}
+            <div className="relative min-h-[600px]" id="ingredients-container">
+              {/* Imágenes de ingredientes flotantes */}
+              {/* Ingredientes flotantes - Visibles en escritorio y ahora también en móvil */}
+              <div className="md:hidden flex justify-center flex-wrap gap-4 mb-8">
+                {/* Versión móvil de burbujas */}
+                <motion.div 
+                  className="bubble-ingredient"
+                  whileTap={{ scale: 1.1 }}
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <div className="bubble-ingredient-inner">
+                    <Image src="/images/ingredient-barley.png" alt="Cebada" width={70} height={70} className="rounded-full" />
+                  </div>
+                </motion.div>
+                <motion.div 
+                  className="bubble-ingredient"
+                  whileTap={{ scale: 1.1 }}
+                  animate={{ scale: [1, 1.05, 1], rotate: [0, 2, 0] }}
+                  transition={{ duration: 2.5, repeat: Infinity, delay: 0.5 }}
+                >
+                  <div className="bubble-ingredient-inner">
+                    <Image src="/images/ingredient-hops.png" alt="Lúpulo" width={65} height={65} className="rounded-full" />
+                  </div>
+                </motion.div>
+                <motion.div 
+                  className="bubble-ingredient" 
+                  whileTap={{ scale: 1.1 }}
+                  animate={{ scale: [1, 1.05, 1], rotate: [0, -2, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, delay: 1 }}
+                >
+                  <div className="bubble-ingredient-inner">
+                    <Image src="/images/ingredient-water.png" alt="Agua" width={60} height={60} className="rounded-full" />
+                  </div>
+                </motion.div>
+                <motion.div 
+                  className="bubble-ingredient"
+                  whileTap={{ scale: 1.1 }}
+                  animate={{ scale: [1, 1.05, 1], rotate: [0, 3, 0] }}
+                  transition={{ duration: 3.5, repeat: Infinity, delay: 1.5 }}
+                >
+                  <div className="bubble-ingredient-inner">
+                    <Image src="/images/ingredient-yeast.png" alt="Levadura" width={70} height={70} className="rounded-full" />
+                  </div>
+                </motion.div>
               </div>
+              
+              {/* Versión desktop - Interactiva y arrastrable */}
+              <BubbleIngredient
+                src="/images/ingredient-barley.png"
+                alt="Cebada"
+                size={100}
+                position={{ top: "20px", left: "40px" }}
+                delay={0}
+                duration={8}
+              />
 
-              {/* Beneficio 2: Nutrientes */}
-              <div className="bg-white rounded-3xl p-6 shadow-md hover:shadow-lg transition-shadow">
-                <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-amber-600"
-                  >
-                    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path>
-                    <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
-                    <path d="M12 17.5v-11"></path>
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-2">
-                  Nutrientes esenciales
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  Gracias a procesos menos agresivos como la no pasteurización y
-                  la filtración mínima, nuestra cerveza conserva una mayor
-                  cantidad de vitaminas del grupo B (B2, B3, B6) y minerales
-                  como magnesio, fósforo y potasio. Estos nutrientes son
-                  importantes para funciones metabólicas y la salud ósea.
-                </p>
-                <div className="text-sm text-amber-700">
-                  Fuente: www.elsevier.com
-                </div>
-              </div>
+              <BubbleIngredient
+                src="/images/ingredient-hops.png"
+                alt="Lúpulo"
+                size={85}
+                position={{ bottom: "80px", left: "15%" }}
+                delay={1}
+                duration={6}
+              />
 
-              {/* Beneficio 3: Salud digestiva */}
-              <div className="bg-white rounded-3xl p-6 shadow-md hover:shadow-lg transition-shadow">
-                <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-amber-600"
-                  >
-                    <path d="M17 10c.7-.7 1.5-1 2.5-1 2 0 3.5 1.5 3.5 3.5 0 .7-.2 1.4-.5 2"></path>
-                    <path d="M9 12a4 4 0 1 0 0 8h10a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-3"></path>
-                    <path d="M13 5c-.4-1.2-1.5-2-3-2-2.2 0-4 1.8-4 4 0 .5.1.9.2 1.2"></path>
-                    <path d="M9 10c-.4-1.2-1.5-2-3-2-2.2 0-4 1.8-4 4 0 .5.1.9.2 1.2"></path>
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-2">
-                  Mejora de la salud digestiva
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  La presencia de fibras solubles como los beta-glucanos y
-                  probióticos naturales en nuestra cerveza artesanal puede
-                  favorecer una digestión saludable y aliviar problemas como el
-                  estreñimiento. Estos componentes también apoyan la salud
-                  intestinal al promover el crecimiento de bacterias
-                  beneficiosas.
-                </p>
-                <div className="text-sm text-amber-700">
-                  Fuente: Cervecería FESTA
-                </div>
-              </div>
-            </div>
+              <BubbleIngredient
+                src="/images/ingredient-water.png"
+                alt="Agua"
+                size={75}
+                position={{ top: "50px", right: "15%" }}
+                delay={0.5}
+                duration={7}
+              />
 
-            <div className="bg-amber-100 rounded-3xl p-6 md:p-8 mt-8">
-              <div className="flex flex-col md:flex-row items-center gap-6">
-                <div className="md:w-1/4 flex justify-center">
-                  <div className="h-32 w-32 rounded-full bg-amber-200 flex items-center justify-center">
+              <BubbleIngredient
+                src="/images/ingredient-yeast.png"
+                alt="Levadura"
+                size={90}
+                position={{ bottom: "40px", right: "60px" }}
+                delay={1.5}
+                duration={9}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-5 mt-8">
+                {/* Beneficio 1: Antioxidantes */}
+                <div className="bg-white rounded-3xl p-6 shadow-md hover:shadow-lg transition-shadow">
+                  <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="64"
-                      height="64"
+                      width="24"
+                      height="24"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="text-amber-700"
+                      className="text-amber-600"
                     >
-                      <path d="M6 12h12"></path>
-                      <path d="M12 6v12"></path>
+                      <path d="M8.4 10.6a4 4 0 1 0 6.3 4.3 4 4 0 0 0-6.3-4.3"></path>
+                      <path d="m13 8.3-2.1-5.6a1 1 0 0 0-1.8 0L7 8.3"></path>
+                      <path d="m9 6.2 1 2.8"></path>
+                      <path d="M16 18a4 4 0 0 0 4-4"></path>
+                      <path d="m12 12 1.3 1.5"></path>
+                      <path d="M19 16c.6 0 1 .4 1 1v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1c0-.6.4-1 1-1"></path>
                     </svg>
                   </div>
-                </div>
-                <div className="md:w-3/4">
                   <h3 className="text-xl font-bold mb-2">
-                    100% Natural, 100% Artesanal
+                    Mayor concentración de antioxidantes
                   </h3>
-                  <p className="text-muted-foreground">
-                    A diferencia de las cervezas industriales, que suelen
-                    contener conservantes, estabilizantes y otros aditivos
-                    químicos, nuestras cervezas artesanales están elaboradas
-                    exclusivamente con ingredientes naturales: agua, malta,
-                    lúpulo y levadura. No utilizamos aditivos artificiales,
-                    conservantes ni aceleradores del proceso de fermentación, lo
-                    que resulta en un producto más puro, sabroso y saludable.
+                  <p className="text-muted-foreground mb-4">
+                    Nuestras cervezas contienen niveles más altos de polifenoles
+                    y flavonoides, compuestos antioxidantes que ayudan a
+                    combatir el estrés oxidativo y la inflamación. Estos
+                    antioxidantes pueden contribuir a la salud cardiovascular y
+                    a la prevención de enfermedades neurodegenerativas.
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
-                      Sin conservantes
-                    </Badge>
-                    <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
-                      Sin aditivos químicos
-                    </Badge>
-                    <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
-                      Ingredientes naturales
-                    </Badge>
-                    <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
-                      Proceso tradicional
-                    </Badge>
-                    <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
-                      Mayor sabor
-                    </Badge>
+                  <div className="text-sm text-amber-700">
+                    Fuentes: elviejoartesano.com, TuChecador App
+                  </div>
+                </div>
+
+                {/* Beneficio 2: Nutrientes */}
+                <div className="bg-white rounded-3xl p-6 shadow-md hover:shadow-lg transition-shadow">
+                  <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-amber-600"
+                    >
+                      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path>
+                      <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
+                      <path d="M12 17.5v-11"></path>
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">
+                    Nutrientes esenciales
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    Gracias a procesos menos agresivos como la no pasteurización
+                    y la filtración mínima, nuestra cerveza conserva una mayor
+                    cantidad de vitaminas del grupo B (B2, B3, B6) y minerales
+                    como magnesio, fósforo y potasio. Estos nutrientes son
+                    importantes para funciones metabólicas y la salud ósea.
+                  </p>
+                  <div className="text-sm text-amber-700">
+                    Fuente: www.elsevier.com
+                  </div>
+                </div>
+
+                {/* Beneficio 3: Salud digestiva */}
+                <div className="bg-white rounded-3xl p-6 shadow-md hover:shadow-lg transition-shadow">
+                  <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-amber-600"
+                    >
+                      <path d="M17 10c.7-.7 1.5-1 2.5-1 2 0 3.5 1.5 3.5 3.5 0 .7-.2 1.4-.5 2"></path>
+                      <path d="M9 12a4 4 0 1 0 0 8h10a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-3"></path>
+                      <path d="M13 5c-.4-1.2-1.5-2-3-2-2.2 0-4 1.8-4 4 0 .5.1.9.2 1.2"></path>
+                      <path d="M9 10c-.4-1.2-1.5-2-3-2-2.2 0-4 1.8-4 4 0 .5.1.9.2 1.2"></path>
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">
+                    Mejora de la salud digestiva
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    La presencia de fibras solubles como los beta-glucanos y
+                    probióticos naturales en nuestra cerveza artesanal puede
+                    favorecer una digestión saludable y aliviar problemas como
+                    el estreñimiento. Estos componentes también apoyan la salud
+                    intestinal al promover el crecimiento de bacterias
+                    beneficiosas.
+                  </p>
+                  <div className="text-sm text-amber-700">
+                    Fuente: Cervecería FESTA
                   </div>
                 </div>
               </div>
+
+              <div className="bg-amber-100 rounded-3xl p-6 md:p-8 mt-8">
+                <div className="flex flex-col md:flex-row items-center gap-6">
+                  <div className="md:w-1/4 flex justify-center">
+                    <div className="h-32 w-32 rounded-full bg-amber-200 flex items-center justify-center">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="64"
+                        height="64"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-amber-700"
+                      >
+                        <path d="M6 12h12"></path>
+                        <path d="M12 6v12"></path>
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="md:w-3/4">
+                    <h3 className="text-xl font-bold mb-2">
+                      100% Natural, 100% Artesanal
+                    </h3>
+                    <p className="text-muted-foreground">
+                      A diferencia de las cervezas industriales, que suelen
+                      contener conservantes, estabilizantes y otros aditivos
+                      químicos, nuestras cervezas artesanales están elaboradas
+                      exclusivamente con ingredientes naturales: agua, malta,
+                      lúpulo y levadura. No utilizamos aditivos artificiales,
+                      conservantes ni aceleradores del proceso de fermentación,
+                      lo que resulta en un producto más puro, sabroso y
+                      saludable.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
+                        Sin conservantes
+                      </Badge>
+                      <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
+                        Sin aditivos químicos
+                      </Badge>
+                      <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
+                        Ingredientes naturales
+                      </Badge>
+                      <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
+                        Proceso tradicional
+                      </Badge>
+                      <Badge className="bg-amber-200 text-amber-800 hover:bg-amber-300">
+                        Mayor sabor
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fin del contenedor relativo para los ingredientes */}
             </div>
           </div>
         </section>
@@ -642,7 +904,7 @@ export default function Home() {
         </section>
 
         {/* Proceso de Elaboración */}
-        <section
+        {/*<section
           id="proceso"
           className="py-16 md:py-24 bg-gradient-to-b from-amber-50 to-white"
         >
@@ -658,18 +920,16 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Galería de fotos */}
             <BreweryGallery />
 
-            {/* Línea de tiempo del proceso */}
             <div className="mt-16">
               <h3 className="text-2xl font-bold text-center mb-8">
                 El Proceso Artesanal
               </h3>
-              <BrewingTimeline />
+              <BrewingTimeline />n 
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* Contact Section */}
         <section id="contacto" className="bg-amber-900/10 py-16 md:py-24">
@@ -944,8 +1204,14 @@ export default function Home() {
   );
 }
 
-function SubscriptionPlans({ subscriptions }: { subscriptions: Subscription[] }) {
-  const [selectedBeerTypes, setSelectedBeerTypes] = useState<Record<string, string>>({});
+function SubscriptionPlans({
+  subscriptions,
+}: {
+  subscriptions: Subscription[];
+}) {
+  const [selectedBeerTypes, setSelectedBeerTypes] = useState<
+    Record<string, string>
+  >({});
 
   const beerPrices = {
     golden: 3500,
@@ -956,14 +1222,15 @@ function SubscriptionPlans({ subscriptions }: { subscriptions: Subscription[] })
   // Inicializar los tipos de cerveza seleccionados para cada plan
   useEffect(() => {
     const initialBeerTypes: Record<string, string> = {};
-    subscriptions.forEach(plan => {
+    subscriptions.forEach((plan) => {
       initialBeerTypes[plan.id] = "golden"; // Valor por defecto
     });
     setSelectedBeerTypes(initialBeerTypes);
   }, [subscriptions]);
 
   const calculatePrice = (liters: number, beerType: string) => {
-    const regularPrice = beerPrices[beerType as keyof typeof beerPrices] * liters;
+    const regularPrice =
+      beerPrices[beerType as keyof typeof beerPrices] * liters;
     const discountedPrice = regularPrice * 0.8; // 20% discount
     return Math.round(discountedPrice);
   };
@@ -974,9 +1241,9 @@ function SubscriptionPlans({ subscriptions }: { subscriptions: Subscription[] })
   };
 
   const updateBeerType = (planId: string, beerType: string) => {
-    setSelectedBeerTypes(prev => ({
+    setSelectedBeerTypes((prev) => ({
       ...prev,
-      [planId]: beerType
+      [planId]: beerType,
     }));
   };
 
@@ -1059,7 +1326,14 @@ function SubscriptionPlans({ subscriptions }: { subscriptions: Subscription[] })
                           )}
                         </span>
                         <span className="text-sm line-through text-amber-700/60">
-                          ${beerPrices[selectedBeerTypes[plan.id] as keyof typeof beerPrices || "golden"]}
+                          $
+                          {
+                            beerPrices[
+                              (selectedBeerTypes[
+                                plan.id
+                              ] as keyof typeof beerPrices) || "golden"
+                            ]
+                          }
                         </span>
                       </div>
                       <p className="text-xs text-amber-600 font-medium">
@@ -1071,7 +1345,11 @@ function SubscriptionPlans({ subscriptions }: { subscriptions: Subscription[] })
                         Total mensual
                       </p>
                       <p className="text-xl font-bold text-amber-700">
-                        ${calculatePrice(plan.liters, selectedBeerTypes[plan.id] || "golden")}
+                        $
+                        {calculatePrice(
+                          plan.liters,
+                          selectedBeerTypes[plan.id] || "golden"
+                        )}
                       </p>
                       <p className="text-xs text-amber-600">
                         por {plan.liters} litros
@@ -1107,7 +1385,11 @@ function SubscriptionPlans({ subscriptions }: { subscriptions: Subscription[] })
               asChild
             >
               <Link
-                href={`/checkout?product=${plan.id}&type=subscription&beer-type=${selectedBeerTypes[plan.id] || "golden"}`}
+                href={`/checkout?product=${
+                  plan.id
+                }&type=subscription&beer-type=${
+                  selectedBeerTypes[plan.id] || "golden"
+                }`}
               >
                 Suscribirse ahora
               </Link>

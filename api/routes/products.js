@@ -12,13 +12,15 @@ const { Beer, Subscription, Discount } = require("../models/products");
 router.get("/beers", trackInteraction("landing", true), async (req, res) => {
   try {
     const beers = await Beer.find({ nullDate: null })
-      .select("id name type typeId price image description")
+      .select("id name type typeId price image description stock")
       .sort({ name: 1 });
 
-    res.status(200).json({ beers });
+    return res.status(200).json({ beers });
   } catch (error) {
     console.error("Error al obtener cervezas:", error);
-    res.status(500).json({ error: "Error al obtener el listado de cervezas" });
+    return res
+      .status(500)
+      .json({ error: "Error al obtener el listado de cervezas" });
   }
 });
 
@@ -57,11 +59,9 @@ router.get(
       res.status(200).json({ subscriptions });
     } catch (error) {
       console.error("Error al obtener planes de suscripción:", error);
-      res
-        .status(500)
-        .json({
-          error: "Error al obtener el listado de planes de suscripción",
-        });
+      res.status(500).json({
+        error: "Error al obtener el listado de planes de suscripción",
+      });
     }
   }
 );

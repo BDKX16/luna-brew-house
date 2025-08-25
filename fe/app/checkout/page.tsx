@@ -39,6 +39,13 @@ import UserAuthForm from "@/components/auth/user-auth-form";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import useFetchAndLoad from "@/hooks/useFetchAndLoad";
+import {
+  getBeers,
+  getSubscriptionPlans,
+  validateDiscount,
+} from "@/services/public";
+import LoadingSpinner from "@/components/ui/loading-spinner";
 
 // Definición de tipos
 type BeerType = "golden" | "red" | "ipa";
@@ -50,13 +57,16 @@ interface Beer {
   typeId: BeerType;
   price: number;
   image: string;
+  description?: string;
+  stock: number;
 }
 
 interface Subscription {
   id: string;
   name: string;
   liters: number;
-  beerType: BeerType;
+  price: number;
+  beerType?: BeerType;
   features: string[];
   popular?: boolean;
 }
@@ -69,17 +79,22 @@ interface CartItem {
 }
 
 interface Discount {
+  id: string;
   code: string;
   type: "percentage" | "fixed";
   value: number;
   minPurchase?: number;
-  validUntil: string;
+  validUntil?: string;
   description: string;
   appliesTo?: "all" | "beer" | "subscription";
 }
 
 export default function CheckoutPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [beers, setBeers] = useState<Beer[]>([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<Subscription[]>(
+    []
+  );
   const [showSubscriptionSuggestion, setShowSubscriptionSuggestion] =
     useState(false);
   const [checkoutStep, setCheckoutStep] = useState<"cart" | "auth" | "payment">(
@@ -88,25 +103,79 @@ export default function CheckoutPage() {
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
   const [discountError, setDiscountError] = useState("");
+  const [loadingBeers, setLoadingBeers] = useState(true);
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(true);
+  const [loadingDiscount, setLoadingDiscount] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
   const { isAuthenticated, user } = useAuth();
+  const { callEndpoint } = useFetchAndLoad();
 
-  // Usar una referencia para evitar múltiples ejecuciones
-  const hasProcessedUrl = React.useRef(false);
+  // Definir los precios de los tipos de cerveza
+  const beerPrices = {
+    golden: 3500,
+    red: 4500,
+    ipa: 5000,
+  };
+
+  // Cargar datos del backend
+  useEffect(() => {
+    const loadProductsData = async () => {
+      try {
+        // Cargar cervezas
+        setLoadingBeers(true);
+        const beersResponse = await callEndpoint(getBeers());
+        if (beersResponse && beersResponse.data && beersResponse.data.beers) {
+          setBeers(beersResponse.data.beers);
+        }
+      } catch (error) {
+        console.error("Error al cargar cervezas:", error);
+        setError("Error al cargar productos");
+      } finally {
+        setLoadingBeers(false);
+      }
+
+      try {
+        // Cargar planes de suscripción
+        setLoadingSubscriptions(true);
+        const subsResponse = await callEndpoint(getSubscriptionPlans());
+        if (
+          subsResponse &&
+          subsResponse.data &&
+          subsResponse.data.subscriptions
+        ) {
+          const subsWithDefaults = subsResponse.data.subscriptions.map(
+            (sub: any) => ({
+              ...sub,
+              beerType: "golden", // Valor por defecto
+            })
+          );
+          setSubscriptionPlans(subsWithDefaults);
+        }
+      } catch (error) {
+        console.error("Error al cargar planes de suscripción:", error);
+        setError("Error al cargar planes de suscripción");
+      } finally {
+        setLoadingSubscriptions(false);
+      }
+    };
+
+    loadProductsData();
+  }, []);
 
   // Simular que venimos de una página anterior con un producto ya seleccionado
   useEffect(() => {
     // Solo procesar una vez y solo del lado del cliente
-    if (typeof window !== "undefined" && !hasProcessedUrl.current) {
-      hasProcessedUrl.current = true;
-
+    if (
+      typeof window !== "undefined" &&
+      !loadingBeers &&
+      !loadingSubscriptions
+    ) {
       const params = new URLSearchParams(window.location.search);
       const productId = params.get("product");
       const productType = params.get("type");
       const beerType = params.get("beer-type") as BeerType | null;
-
-      console.log(productId);
 
       if (productId && productType) {
         // Verificar si ya existe un producto del mismo tipo
@@ -155,7 +224,7 @@ export default function CheckoutPage() {
         }
       }
     }
-  }, []); // Sin dependencias para ejecutar solo en el montaje
+  }, [beers, subscriptionPlans, loadingBeers, loadingSubscriptions]); // Ejecutar cuando los datos estén disponibles
 
   // Verificar si debemos mostrar sugerencias de suscripción
   useEffect(() => {
@@ -184,11 +253,51 @@ export default function CheckoutPage() {
       }
     }
 
+    // Para cervezas, verificar stock disponible
+    if (item.type === "beer") {
+      const beer = item.product as Beer;
+
+      // Verificar si hay stock disponible
+      if (beer.stock <= 0) {
+        toast({
+          title: "Producto agotado",
+          description: `${beer.name} no tiene stock disponible.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Verificar si el producto específico ya está en el carrito
     const existingItem = cart.find((cartItem) => cartItem.id === item.id);
 
     if (existingItem) {
-      // Actualizar cantidad
+      // Para cervezas, verificar que no exceda el stock disponible
+      if (item.type === "beer") {
+        const beer = item.product as Beer;
+        const newQuantity = existingItem.quantity + item.quantity;
+
+        // Si la nueva cantidad excede el stock, limitar a la cantidad disponible
+        if (newQuantity > beer.stock) {
+          toast({
+            title: "Stock limitado",
+            description: `Solo hay ${beer.stock} unidades disponibles de ${beer.name}`,
+            variant: "destructive",
+          });
+
+          // Actualizar cantidad al máximo disponible
+          setCart((prevCart) =>
+            prevCart.map((cartItem) =>
+              cartItem.id === item.id
+                ? { ...cartItem, quantity: beer.stock }
+                : cartItem
+            )
+          );
+          return;
+        }
+      }
+
+      // Actualizar cantidad (si hay suficiente stock)
       setCart((prevCart) =>
         prevCart.map((cartItem) =>
           cartItem.id === item.id
@@ -214,6 +323,26 @@ export default function CheckoutPage() {
 
   const updateQuantity = (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
+
+    // Find the item in the cart
+    const cartItem = cart.find((item) => item.id === itemId);
+
+    // Check if we're updating a beer and validate against stock
+    if (cartItem && cartItem.type === "beer") {
+      const beer = cartItem.product as Beer;
+
+      // Don't allow quantity to exceed available stock
+      if (beer.stock < newQuantity) {
+        toast({
+          title: "Cantidad no disponible",
+          description: `Solo hay ${beer.stock} unidades disponibles de ${beer.name}`,
+          variant: "destructive",
+        });
+
+        // Set quantity to maximum available stock
+        newQuantity = beer.stock;
+      }
+    }
 
     setCart((prevCart) =>
       prevCart.map((item) =>
@@ -257,13 +386,14 @@ export default function CheckoutPage() {
 
   // Cálculos para el carrito
   const calculateSubscriptionPrice = (subscription: Subscription) => {
-    const regularPrice =
-      beerPrices[subscription.beerType] * subscription.liters;
+    const beerType = subscription.beerType || "golden";
+    const regularPrice = beerPrices[beerType] * subscription.liters;
     return Math.round(regularPrice * 0.8); // 20% de descuento
   };
 
   const calculateRegularSubscriptionPrice = (subscription: Subscription) => {
-    return beerPrices[subscription.beerType] * subscription.liters;
+    const beerType = subscription.beerType || "golden";
+    return beerPrices[beerType] * subscription.liters;
   };
 
   const calculateItemPrice = (item: CartItem) => {
@@ -343,7 +473,7 @@ export default function CheckoutPage() {
   };
 
   // Función para aplicar código de descuento
-  const applyDiscountCode = () => {
+  const applyDiscountCode = async () => {
     // Limpiar error previo
     setDiscountError("");
 
@@ -353,54 +483,44 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Buscar el código en los descuentos disponibles
-    const discount = availableDiscounts.find(
-      (d) => d.code.toLowerCase() === discountCode.trim().toLowerCase()
-    );
+    try {
+      setLoadingDiscount(true);
 
-    // Verificar si el código existe
-    if (!discount) {
-      setDiscountError("Código de descuento inválido");
-      return;
-    }
+      // Preparar items para enviar al backend
+      const cartItems = cart.map((item) => ({
+        id: item.id,
+        type: item.type,
+        quantity: item.quantity,
+        price:
+          item.type === "beer"
+            ? (item.product as Beer).price
+            : calculateSubscriptionPrice(item.product as Subscription),
+      }));
 
-    // Verificar si el código ha expirado
-    const validUntil = new Date(discount.validUntil);
-    const now = new Date();
-    if (validUntil < now) {
-      setDiscountError("Este código de descuento ha expirado");
-      return;
-    }
-
-    // Verificar si cumple con la compra mínima
-    if (discount.minPurchase && calculateSubtotal() < discount.minPurchase) {
-      setDiscountError(
-        `Este código requiere una compra mínima de $${discount.minPurchase}`
+      // Validar el código con el backend
+      const response = await callEndpoint(
+        validateDiscount(discountCode.trim(), cartItems)
       );
-      return;
-    }
 
-    // Verificar si aplica al tipo de productos en el carrito
-    if (discount.appliesTo && discount.appliesTo !== "all") {
-      const hasApplicableItems = cart.some(
-        (item) => item.type === discount.appliesTo
-      );
-      if (!hasApplicableItems) {
+      if (response && response.data && response.data.valid) {
+        // El código es válido
+        setAppliedDiscount(response.data.discount);
+        toast({
+          title: "¡Código aplicado!",
+          description: response.data.discount.description,
+        });
+      } else {
+        // El código no es válido
         setDiscountError(
-          `Este código solo aplica a ${
-            discount.appliesTo === "beer" ? "cervezas" : "suscripciones"
-          }`
+          response.data?.message || "Código de descuento inválido"
         );
-        return;
       }
+    } catch (error) {
+      console.error("Error al validar código de descuento:", error);
+      setDiscountError("Error al validar el código de descuento");
+    } finally {
+      setLoadingDiscount(false);
     }
-
-    // Aplicar el descuento
-    setAppliedDiscount(discount);
-    toast({
-      title: "¡Código aplicado!",
-      description: discount.description,
-    });
   };
 
   // Función para eliminar código de descuento
@@ -411,6 +531,79 @@ export default function CheckoutPage() {
       title: "Código de descuento eliminado",
     });
   };
+
+  // Loading state
+  if (loadingBeers || loadingSubscriptions) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container flex h-16 items-center justify-between py-4">
+            <div className="flex items-center gap-2">
+              <Link href="/" className="flex items-center gap-2">
+                <div className="relative h-10 w-10 overflow-hidden rounded-full">
+                  <Image
+                    src="/images/luna-logo.png"
+                    alt="Luna logo"
+                    width={40}
+                    height={40}
+                    className="object-cover"
+                  />
+                </div>
+                <span className="text-xl font-bold">Luna Brew House</span>
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 py-10">
+          <div className="container flex flex-col items-center justify-center h-full">
+            <LoadingSpinner size="large" />
+            <p className="mt-4 text-muted-foreground">Cargando productos...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Si hay error al cargar
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container flex h-16 items-center justify-between py-4">
+            <div className="flex items-center gap-2">
+              <Link href="/" className="flex items-center gap-2">
+                <div className="relative h-10 w-10 overflow-hidden rounded-full">
+                  <Image
+                    src="/images/luna-logo.png"
+                    alt="Luna logo"
+                    width={40}
+                    height={40}
+                    className="object-cover"
+                  />
+                </div>
+                <span className="text-xl font-bold">Luna Brew House</span>
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 py-10">
+          <div className="container flex flex-col items-center justify-center h-full">
+            <div className="text-center space-y-4">
+              <p className="text-red-500">{error}</p>
+              <Button
+                className="rounded-full bg-amber-600 hover:bg-amber-700"
+                onClick={() => window.location.reload()}
+              >
+                Reintentar
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -557,7 +750,9 @@ export default function CheckoutPage() {
                                           Variedad de cerveza:
                                         </label>
                                         <Select
-                                          value={subscription.beerType}
+                                          value={
+                                            subscription.beerType || "golden"
+                                          }
                                           onValueChange={(value: BeerType) =>
                                             updateSubscriptionBeerType(
                                               item.id,
@@ -592,7 +787,8 @@ export default function CheckoutPage() {
                                               $
                                               {
                                                 beerPrices[
-                                                  subscription.beerType
+                                                  subscription.beerType ||
+                                                    "golden"
                                                 ]
                                               }
                                             </p>
@@ -605,7 +801,8 @@ export default function CheckoutPage() {
                                               $
                                               {Math.round(
                                                 beerPrices[
-                                                  subscription.beerType
+                                                  subscription.beerType ||
+                                                    "golden"
                                                 ] * 0.8
                                               )}
                                             </p>
@@ -614,8 +811,9 @@ export default function CheckoutPage() {
                                         <div className="mt-2 text-sm text-amber-700 font-medium">
                                           ¡Ahorras $
                                           {Math.round(
-                                            beerPrices[subscription.beerType] *
-                                              0.2
+                                            beerPrices[
+                                              subscription.beerType || "golden"
+                                            ] * 0.2
                                           )}{" "}
                                           por litro con esta suscripción!
                                         </div>
@@ -708,36 +906,68 @@ export default function CheckoutPage() {
                                     </div>
 
                                     <div className="flex flex-row sm:flex-col justify-between items-end">
-                                      <div className="flex items-center gap-3">
-                                        <Button
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-8 w-8 rounded-full"
-                                          onClick={() =>
-                                            updateQuantity(
-                                              item.id,
-                                              item.quantity - 1
-                                            )
-                                          }
-                                        >
-                                          <Minus className="h-4 w-4" />
-                                        </Button>
-                                        <span className="w-8 text-center">
-                                          {item.quantity}
-                                        </span>
-                                        <Button
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-8 w-8 rounded-full"
-                                          onClick={() =>
-                                            updateQuantity(
-                                              item.id,
-                                              item.quantity + 1
-                                            )
-                                          }
-                                        >
-                                          <Plus className="h-4 w-4" />
-                                        </Button>
+                                      <div className="flex flex-col items-start gap-2">
+                                        <div className="flex items-center gap-3">
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-full"
+                                            onClick={() =>
+                                              updateQuantity(
+                                                item.id,
+                                                item.quantity - 1
+                                              )
+                                            }
+                                          >
+                                            <Minus className="h-4 w-4" />
+                                          </Button>
+                                          <span className="w-8 text-center">
+                                            {item.quantity}
+                                          </span>
+                                          <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-full"
+                                            onClick={() =>
+                                              updateQuantity(
+                                                item.id,
+                                                item.quantity + 1
+                                              )
+                                            }
+                                            disabled={
+                                              item.type === "beer" &&
+                                              item.quantity >=
+                                                (item.product as Beer).stock
+                                            }
+                                            title={
+                                              item.type === "beer" &&
+                                              item.quantity >=
+                                                (item.product as Beer).stock
+                                                ? `Máximo stock disponible: ${
+                                                    (item.product as Beer).stock
+                                                  }`
+                                                : ""
+                                            }
+                                          >
+                                            <Plus className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                        {item.type === "beer" && (
+                                          <div className="text-xs text-muted-foreground">
+                                            {item.quantity ===
+                                            (item.product as Beer).stock ? (
+                                              <span className="text-amber-600">
+                                                Las ultimas{" "}
+                                                {(item.product as Beer).stock}!
+                                              </span>
+                                            ) : (
+                                              <span>
+                                                Disponible:{" "}
+                                                {(item.product as Beer).stock}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
 
                                       <Button
@@ -769,9 +999,9 @@ export default function CheckoutPage() {
                         ¿Sabías que puedes ahorrar?
                       </AlertTitle>
                       <AlertDescription className="text-amber-700">
-                        Suscríbite a nuestro Club Luna y obtene un 20% de
-                        descuento en tus cervezas favoritas, además de una
-                        botella de edición especial gratis cada mes.
+                        Suscríbite a nuestro Club Luna y obtene un 20% de ahorro
+                        en tus cervezas favoritas, además de una botella de
+                        edición especial gratis cada mes.
                       </AlertDescription>
                     </Alert>
 
@@ -831,7 +1061,10 @@ export default function CheckoutPage() {
                                             id: plan.id,
                                             type: "subscription",
                                             quantity: 1,
-                                            product: plan,
+                                            product: {
+                                              ...plan,
+                                              beerType: "golden" as BeerType,
+                                            },
                                           })
                                         }
                                       >
@@ -888,8 +1121,12 @@ export default function CheckoutPage() {
                               </p>
 
                               <Button
-                                className="w-full rounded-full mt-3 bg-amber-600 hover:bg-amber-700"
-                                disabled={isInCart}
+                                className={`w-full rounded-full mt-3 ${
+                                  beer.stock <= 0
+                                    ? "bg-gray-400 cursor-not-allowed"
+                                    : "bg-amber-600 hover:bg-amber-700"
+                                }`}
+                                disabled={isInCart || beer.stock <= 0}
                                 onClick={() =>
                                   addToCart({
                                     id: beer.id,
@@ -901,6 +1138,8 @@ export default function CheckoutPage() {
                               >
                                 {isInCart
                                   ? "Ya en el carrito"
+                                  : beer.stock <= 0
+                                  ? "Agotado"
                                   : "Añadir al carrito"}
                               </Button>
                             </CardContent>
@@ -988,13 +1227,19 @@ export default function CheckoutPage() {
                                       setDiscountCode(e.target.value)
                                     }
                                     className="rounded-full"
+                                    disabled={loadingDiscount}
                                   />
                                   <Button
                                     variant="outline"
                                     className="rounded-full border-amber-600 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
                                     onClick={applyDiscountCode}
+                                    disabled={loadingDiscount}
                                   >
-                                    Aplicar
+                                    {loadingDiscount ? (
+                                      <LoadingSpinner size="small" />
+                                    ) : (
+                                      "Aplicar"
+                                    )}
                                   </Button>
                                 </div>
                                 {discountError && (
