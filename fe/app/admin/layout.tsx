@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Settings,
   Users,
+  ChefHat,
   LogOut,
   Menu,
   TicketPercent,
@@ -29,6 +30,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { href: "/admin/productos", label: "Productos", icon: Beer },
     { href: "/admin/ventas", label: "Ventas y Pedidos", icon: ShoppingCart },
     { href: "/admin/promociones", label: "Promociones", icon: TicketPercent },
+    { href: "/admin/recetas", label: "Recetas", icon: ChefHat },
     { href: "/admin/configuracion", label: "Configuración", icon: Settings },
     { href: "/admin/usuarios", label: "Usuarios", icon: Users },
   ];
