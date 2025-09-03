@@ -80,6 +80,11 @@ const brewingSessionSchema = new mongoose.Schema({
     {
       stepId: String,
       completedAt: Date,
+      customStep: {
+        type: recipeStepSchema,
+        required: false,
+        default: null,
+      },
     },
   ],
   status: {
@@ -283,18 +288,22 @@ recipeSchema.pre("save", function (next) {
 
 // Métodos del esquema
 recipeSchema.methods.hasActiveSession = function () {
-  // Verificar si hay alguna sesión activa (brewing o paused)
+  // Verificar si hay alguna sesión activa (brewing, paused, o fermenting)
   return this.brewingSessions.some(
     (session) =>
-      session.status === "brewing" && (session.isRunning || session.isPaused)
+      (session.status === "brewing" &&
+        (session.isRunning || session.isPaused)) ||
+      session.status === "fermenting"
   );
 };
 
 recipeSchema.methods.getActiveSession = function () {
-  // Obtener la sesión activa (brewing o paused)
+  // Obtener la sesión activa (brewing, paused, o fermenting)
   return this.brewingSessions.find(
     (session) =>
-      session.status === "brewing" && (session.isRunning || session.isPaused)
+      (session.status === "brewing" &&
+        (session.isRunning || session.isPaused)) ||
+      session.status === "fermenting"
   );
 };
 
@@ -437,6 +446,89 @@ recipeSchema.methods.endCurrentSession = function (status = "completed") {
   if (status === "completed") {
     this.currentSession = null;
   }
+};
+
+// Métodos para manejar pasos personalizados de sesión
+recipeSchema.methods.addCustomStepToSession = function (sessionId, stepData) {
+  const session = this.brewingSessions.find((s) => s.sessionId === sessionId);
+
+  if (!session) {
+    throw new Error("Sesión no encontrada");
+  }
+
+  const customStepId = new mongoose.Types.ObjectId().toString();
+  const customStepData = {
+    id: customStepId,
+    time: stepData.time,
+    type: stepData.type,
+    description: stepData.description,
+    amount: stepData.amount || "",
+    temperature: stepData.temperature || null,
+  };
+
+  // Agregar a completedSteps con customStep
+  session.completedSteps.push({
+    stepId: customStepId,
+    completedAt: new Date(),
+    customStep: customStepData,
+  });
+
+  return customStepData;
+};
+
+recipeSchema.methods.updateCustomStepInSession = function (
+  sessionId,
+  stepId,
+  updateData
+) {
+  const session = this.brewingSessions.find((s) => s.sessionId === sessionId);
+
+  if (!session) {
+    throw new Error("Sesión no encontrada");
+  }
+
+  const completedStep = session.completedSteps.find(
+    (step) => step.stepId === stepId && step.customStep
+  );
+
+  if (!completedStep) {
+    throw new Error("Paso personalizado no encontrado");
+  }
+
+  // Actualizar los campos del paso personalizado
+  if (updateData.time !== undefined)
+    completedStep.customStep.time = updateData.time;
+  if (updateData.type) completedStep.customStep.type = updateData.type;
+  if (updateData.description)
+    completedStep.customStep.description = updateData.description;
+  if (updateData.amount !== undefined)
+    completedStep.customStep.amount = updateData.amount;
+  if (updateData.temperature !== undefined)
+    completedStep.customStep.temperature = updateData.temperature;
+
+  return completedStep.customStep;
+};
+
+recipeSchema.methods.removeCustomStepFromSession = function (
+  sessionId,
+  stepId
+) {
+  const session = this.brewingSessions.find((s) => s.sessionId === sessionId);
+
+  if (!session) {
+    throw new Error("Sesión no encontrada");
+  }
+
+  const stepIndex = session.completedSteps.findIndex(
+    (step) => step.stepId === stepId && step.customStep
+  );
+
+  if (stepIndex === -1) {
+    throw new Error("Paso personalizado no encontrado");
+  }
+
+  session.completedSteps.splice(stepIndex, 1);
+  return true;
 };
 
 // Índices

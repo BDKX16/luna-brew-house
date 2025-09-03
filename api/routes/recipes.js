@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const Recipe = require("../models/recipe");
 const { v4: uuidv4 } = require("uuid");
@@ -544,14 +545,17 @@ router.post("/recipes/:id/complete", async (req, res) => {
         .json({ error: "No hay sesión activa para finalizar" });
     }
 
+    // Encontrar la sesión ANTES de finalizarla
+    const currentSession = recipe.brewingSessions.find(
+      (s) => s.sessionId === recipe.currentSession
+    );
+
     recipe.endCurrentSession(status);
     await recipe.save();
 
     res.json({
       message: `Sesión finalizada con estado: ${status}`,
-      session: recipe.brewingSessions.find(
-        (s) => s.sessionId === recipe.currentSession
-      ),
+      session: currentSession,
     });
   } catch (error) {
     console.error("Error al finalizar sesión:", error);
@@ -583,6 +587,7 @@ router.get("/recipes/:id/status", async (req, res) => {
             pausedAt: activeSession.pausedAt,
             currentTime: activeSession.currentTime,
             completedSteps: activeSession.completedSteps,
+            fermentationStartDate: activeSession.fermentationStartDate,
             originalGravity: activeSession.originalGravity,
             finalGravity: activeSession.finalGravity,
             calculatedABV: activeSession.calculatedABV,
@@ -612,9 +617,18 @@ router.get("/recipes/:id/history", async (req, res) => {
     }
 
     res.json({
-      sessions: recipe.brewingSessions.sort(
-        (a, b) => new Date(b.startDate) - new Date(a.startDate)
-      ),
+      sessions: recipe.brewingSessions
+        .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))
+        .map((session) => ({
+          ...session.toObject(),
+          recipe: {
+            steps: recipe.steps,
+            fermentationDays: recipe.fermentationDays,
+          },
+          recipeName: recipe.name,
+          recipeStyle: recipe.style,
+          recipeId: recipe.id,
+        })),
     });
   } catch (error) {
     console.error("Error al obtener historial:", error);
@@ -766,9 +780,13 @@ router.get("/brewing-sessions", async (req, res) => {
             batchNotes: session.batchNotes || null,
             packagingDate: session.packagingDate || null,
             batchLiters: session.batchLiters || null,
-            completedSteps: session.completedSteps
-              ? session.completedSteps.length
-              : 0,
+            completedSteps: session.completedSteps || [],
+            recipe: {
+              steps: recipe.steps,
+              fermentationDays: recipe.fermentationDays,
+              mashTime: recipe.mashTime,
+              boilTime: recipe.boilTime,
+            },
           });
         });
       }
@@ -866,5 +884,167 @@ router.patch("/brewing-sessions/:sessionId/packaging", async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
+
+// ===== RUTAS PARA PASOS PERSONALIZADOS DE SESIÓN =====
+
+// Agregar paso personalizado a una sesión específica
+router.post(
+  "/recipes/:recipeId/brewing-sessions/:sessionId/custom-steps",
+  async (req, res) => {
+    try {
+      const { recipeId, sessionId } = req.params;
+      const { time, type, description, amount, temperature } = req.body;
+
+      if ((!time && time !== 0) || !type || !description) {
+        return res.status(400).json({
+          error: "time, type y description son requeridos",
+        });
+      }
+
+      // Buscar la receta por ID
+      let recipe = await Recipe.findOne({ id: recipeId });
+
+      // Si no se encuentra por id personalizado, intentar con _id de MongoDB
+      if (!recipe && recipeId.match(/^[0-9a-fA-F]{24}$/)) {
+        recipe = await Recipe.findById(recipeId);
+      }
+
+      if (!recipe) {
+        return res.status(404).json({ error: "Receta no encontrada" });
+      }
+
+      // Verificar que la sesión existe en esta receta
+      const session = recipe.brewingSessions.find(
+        (s) => s.sessionId === sessionId
+      );
+      if (!session) {
+        return res
+          .status(404)
+          .json({ error: "Sesión no encontrada en esta receta" });
+      }
+
+      // Usar el método del modelo para agregar el paso personalizado
+      const customStep = recipe.addCustomStepToSession(sessionId, {
+        time,
+        type,
+        description,
+        amount,
+        temperature,
+      });
+
+      await recipe.save();
+
+      res.status(201).json({
+        message: "Paso personalizado agregado exitosamente",
+        step: customStep,
+      });
+    } catch (error) {
+      console.error("Error al agregar paso personalizado:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Error interno del servidor" });
+    }
+  }
+);
+
+// Editar paso personalizado de una sesión específica
+router.put(
+  "/recipes/:recipeId/brewing-sessions/:sessionId/custom-steps/:stepId",
+  async (req, res) => {
+    try {
+      const { recipeId, sessionId, stepId } = req.params;
+      const { time, type, description, amount, temperature } = req.body;
+
+      // Buscar la receta por ID
+      let recipe = await Recipe.findOne({ id: recipeId });
+
+      // Si no se encuentra por id personalizado, intentar con _id de MongoDB
+      if (!recipe && recipeId.match(/^[0-9a-fA-F]{24}$/)) {
+        recipe = await Recipe.findById(recipeId);
+      }
+
+      if (!recipe) {
+        return res.status(404).json({ error: "Receta no encontrada" });
+      }
+
+      // Verificar que la sesión existe en esta receta
+      const session = recipe.brewingSessions.find(
+        (s) => s.sessionId === sessionId
+      );
+      if (!session) {
+        return res
+          .status(404)
+          .json({ error: "Sesión no encontrada en esta receta" });
+      }
+
+      // Usar el método del modelo para actualizar el paso personalizado
+      const updatedStep = recipe.updateCustomStepInSession(sessionId, stepId, {
+        time,
+        type,
+        description,
+        amount,
+        temperature,
+      });
+
+      await recipe.save();
+
+      res.json({
+        message: "Paso personalizado actualizado exitosamente",
+        step: updatedStep,
+      });
+    } catch (error) {
+      console.error("Error al actualizar paso personalizado:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Error interno del servidor" });
+    }
+  }
+);
+
+// Eliminar paso personalizado de una sesión específica
+router.delete(
+  "/recipes/:recipeId/brewing-sessions/:sessionId/custom-steps/:stepId",
+  async (req, res) => {
+    try {
+      const { recipeId, sessionId, stepId } = req.params;
+
+      // Buscar la receta por ID
+      let recipe = await Recipe.findOne({ id: recipeId });
+
+      // Si no se encuentra por id personalizado, intentar con _id de MongoDB
+      if (!recipe && recipeId.match(/^[0-9a-fA-F]{24}$/)) {
+        recipe = await Recipe.findById(recipeId);
+      }
+
+      if (!recipe) {
+        return res.status(404).json({ error: "Receta no encontrada" });
+      }
+
+      // Verificar que la sesión existe en esta receta
+      const session = recipe.brewingSessions.find(
+        (s) => s.sessionId === sessionId
+      );
+      if (!session) {
+        return res
+          .status(404)
+          .json({ error: "Sesión no encontrada en esta receta" });
+      }
+
+      // Usar el método del modelo para eliminar el paso personalizado
+      recipe.removeCustomStepFromSession(sessionId, stepId);
+
+      await recipe.save();
+
+      res.json({
+        message: "Paso personalizado eliminado exitosamente",
+      });
+    } catch (error) {
+      console.error("Error al eliminar paso personalizado:", error);
+      res
+        .status(500)
+        .json({ error: error.message || "Error interno del servidor" });
+    }
+  }
+);
 
 module.exports = router;

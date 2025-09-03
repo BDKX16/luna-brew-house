@@ -37,6 +37,11 @@ import {
   Timer,
   Loader2,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import useFetchAndLoad from "@/hooks/useFetchAndLoad";
 import { updateBrewingSessionPackaging } from "@/services/private";
@@ -85,6 +90,19 @@ interface BrewingSession {
     }>;
     fermentationDays?: number;
   };
+}
+
+interface GroupedStep {
+  time: number;
+  steps: Array<{
+    id: string;
+    time: number;
+    type: string;
+    description: string;
+    amount?: string;
+    temperature?: number;
+  }>;
+  position: number;
 }
 
 export default function BatchDetailsModal({
@@ -183,11 +201,97 @@ export default function BatchDetailsModal({
     return session.completedSteps?.find((cs) => cs.stepId === stepId);
   };
 
-  // Separar pasos de cocción y fermentación
-  const brewingSteps =
-    session.recipe?.steps.filter((step) => step.time < 1440) || []; // Menos de 24 horas = cocción
-  const fermentationSteps =
-    session.recipe?.steps.filter((step) => step.time >= 1440) || []; // 24 horas o más = fermentación
+  // Obtener pasos personalizados de completedSteps
+  const customSteps =
+    session.completedSteps
+      ?.filter((cs) => cs.customStep)
+      .map((cs) => ({ ...cs.customStep, isCustomStep: true })) || [];
+
+  // Separar pasos de cocción y fermentación (incluyendo personalizados)
+  const recipeBrewingSteps =
+    session.recipe?.steps.filter((step) => step.time < 1440) || [];
+  const recipeFermentationSteps =
+    session.recipe?.steps.filter((step) => step.time >= 1440) || [];
+
+  const customBrewingSteps = customSteps.filter((step) => step.time < 1440);
+  const customFermentationSteps = customSteps.filter(
+    (step) => step.time >= 1440
+  );
+
+  const brewingSteps = [...recipeBrewingSteps, ...customBrewingSteps];
+  const fermentationSteps = [
+    ...recipeFermentationSteps,
+    ...customFermentationSteps,
+  ];
+
+  // Separar pasos por fase de proceso
+  const mashingSteps = brewingSteps.filter(
+    (step) => step.time <= (session.recipe?.mashTime || 60)
+  );
+  const boilingSteps = brewingSteps.filter(
+    (step) => step.time > (session.recipe?.mashTime || 60)
+  );
+
+  // Función para agrupar pasos que están muy cerca
+  const groupSteps = (
+    steps: Array<{
+      id: string;
+      time: number;
+      type: string;
+      description: string;
+      amount?: string;
+      temperature?: number;
+    }>,
+    maxTime: number,
+    isBrewingSteps = true,
+    isMashing = false
+  ): GroupedStep[] => {
+    const groups: GroupedStep[] = [];
+    const sortedSteps = [...steps].sort((a, b) => a.time - b.time);
+
+    for (const step of sortedSteps) {
+      const timeToCheck = isBrewingSteps
+        ? step.time
+        : Math.floor(step.time / 1440); // Para fermentación usar días
+      const threshold = isBrewingSteps ? 11 : 1; // 11 minutos para cocción, 1 día para fermentación
+
+      // Buscar si hay un grupo existente dentro del threshold
+      const existingGroup = groups.find(
+        (group) => Math.abs(group.time - timeToCheck) < threshold
+      );
+
+      if (existingGroup) {
+        existingGroup.steps.push(step);
+      } else {
+        let position: number;
+        if (isBrewingSteps) {
+          if (isMashing) {
+            // Para maceración, usar el mashTime como base
+            position = (step.time / (session.recipe?.mashTime || 60)) * 100;
+          } else {
+            // Para cocción, ajustar el tiempo base al inicio de la cocción
+            const mashTime = session.recipe?.mashTime || 60;
+            const adjustedTime = step.time - mashTime;
+            const boilTime = session.recipe?.boilTime || 60;
+            position = (adjustedTime / boilTime) * 100;
+          }
+        } else {
+          position =
+            (Math.floor(step.time / 1440) /
+              (session.recipe?.fermentationDays || 14)) *
+            100;
+        }
+
+        groups.push({
+          time: timeToCheck,
+          steps: [step],
+          position: Math.min(position, 95),
+        });
+      }
+    }
+
+    return groups;
+  };
 
   const handleDelete = async () => {
     try {
@@ -432,74 +536,388 @@ export default function BatchDetailsModal({
 
             <Separator />
 
+            {/* Timeline de Maceración */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Beaker className="h-5 w-5 text-amber-600" />
+                Timeline de Maceración
+              </h3>
+
+              {mashingSteps.length > 0 ? (
+                <div className="relative px-8 pb-16">
+                  {/* Barra de progreso principal */}
+                  <div className="w-full h-3 bg-gray-200 rounded-full">
+                    <div
+                      className="h-3 bg-amber-500 rounded-full transition-all duration-1000"
+                      style={{ width: "100%" }} // Mostrar completo en el histórico
+                    />
+                  </div>
+
+                  {/* Marcadores de pasos agrupados */}
+                  <div className="relative mt-6">
+                    {(() => {
+                      const mashTime = session.recipe?.mashTime || 60;
+                      const groupedSteps = groupSteps(
+                        mashingSteps,
+                        mashTime,
+                        true,
+                        true
+                      );
+
+                      return groupedSteps.map((group, groupIndex) => {
+                        const hasMultipleSteps = group.steps.length > 1;
+                        const primaryStep = group.steps[0];
+
+                        return (
+                          <Popover key={groupIndex}>
+                            <PopoverTrigger asChild>
+                              <div
+                                className="absolute transform -translate-x-1/2 cursor-pointer hover:scale-110 transition-transform"
+                                style={{ left: `${group.position}%` }}
+                              >
+                                <div className="flex flex-col items-center">
+                                  <div className="relative">
+                                    <div
+                                      className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg ${
+                                        group.steps.every((step) =>
+                                          isStepCompleted(step.id)
+                                        )
+                                          ? "bg-green-500 text-white"
+                                          : "bg-gray-300 text-gray-600"
+                                      }`}
+                                    >
+                                      <span className="text-lg">
+                                        {hasMultipleSteps
+                                          ? "📋"
+                                          : getStepTypeIcon(primaryStep.type)}
+                                      </span>
+                                    </div>
+                                    {/* Marca distintiva para pasos personalizados */}
+                                    {group.steps.some(
+                                      (step: any) => step.isCustomStep
+                                    ) && (
+                                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-xs font-bold">
+                                          +
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 text-xs text-center max-w-20">
+                                    <div className="font-medium text-gray-700">
+                                      {group.time}m
+                                    </div>
+                                    <div className="text-gray-600 text-xs truncate">
+                                      {hasMultipleSteps
+                                        ? `${group.steps.length} pasos`
+                                        : primaryStep.description.length > 15
+                                        ? primaryStep.description.substring(
+                                            0,
+                                            15
+                                          ) + "..."
+                                        : primaryStep.description}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-96">
+                              <div className="space-y-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xl">
+                                    {hasMultipleSteps
+                                      ? "📋"
+                                      : getStepTypeIcon(primaryStep.type)}
+                                  </span>
+                                  <h4 className="font-medium">
+                                    {hasMultipleSteps
+                                      ? `${group.steps.length} pasos en ${group.time} minutos`
+                                      : primaryStep.description}
+                                  </h4>
+                                </div>
+
+                                <div className="space-y-3 max-h-80 overflow-y-auto">
+                                  {group.steps.map((step) => {
+                                    const isCompleted = isStepCompleted(
+                                      step.id
+                                    );
+                                    const completedInfo = getCompletedStepInfo(
+                                      step.id
+                                    );
+
+                                    return (
+                                      <div
+                                        key={step.id}
+                                        className={`p-3 rounded-lg border ${
+                                          isCompleted
+                                            ? "bg-amber-50 border-amber-200"
+                                            : "bg-gray-50 border-gray-200"
+                                        }`}
+                                      >
+                                        <div className="flex items-start gap-3">
+                                          <div className="mt-1">
+                                            {isCompleted ? (
+                                              <CheckCircle className="h-4 w-4 text-amber-600" />
+                                            ) : (
+                                              <Circle className="h-4 w-4 text-gray-400" />
+                                            )}
+                                          </div>
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                              <span className="text-sm">
+                                                {getStepTypeIcon(step.type)}
+                                              </span>
+                                              <span className="font-medium text-sm">
+                                                {step.description}
+                                              </span>
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs"
+                                              >
+                                                {step.time} min
+                                              </Badge>
+                                              {(step as any).isCustomStep && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="bg-blue-50 border-blue-200 text-blue-700 text-xs"
+                                                >
+                                                  + Personalizado
+                                                </Badge>
+                                              )}
+                                            </div>
+                                            {step.amount && (
+                                              <p className="text-xs text-muted-foreground">
+                                                Cantidad: {step.amount}
+                                              </p>
+                                            )}
+                                            {step.temperature && (
+                                              <p className="text-xs text-muted-foreground">
+                                                Temperatura: {step.temperature}
+                                                °C
+                                              </p>
+                                            )}
+                                            {isCompleted && completedInfo && (
+                                              <p className="text-xs text-amber-600 mt-1">
+                                                ✓{" "}
+                                                {formatDate(
+                                                  completedInfo.completedAt
+                                                )}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  No hay pasos de maceración definidos
+                </p>
+              )}
+            </div>
+
+            <Separator />
+
             {/* Timeline de Cocción */}
             <div>
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Beaker className="h-5 w-5 text-orange-600" />
+                <FlaskConical className="h-5 w-5 text-orange-600" />
                 Timeline de Cocción
               </h3>
-              <div className="space-y-3">
-                {brewingSteps.length > 0 ? (
-                  brewingSteps
-                    .sort((a, b) => a.time - b.time)
-                    .map((step) => {
-                      const isCompleted = isStepCompleted(step.id);
-                      const completedInfo = getCompletedStepInfo(step.id);
 
-                      return (
-                        <div
-                          key={step.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg border ${
-                            isCompleted
-                              ? "bg-green-50 border-green-200"
-                              : "bg-gray-50 border-gray-200"
-                          }`}
-                        >
-                          <div className="mt-1">
-                            {isCompleted ? (
-                              <CheckCircle className="h-5 w-5 text-green-600" />
-                            ) : (
-                              <Circle className="h-5 w-5 text-gray-400" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-lg">
-                                {getStepTypeIcon(step.type)}
-                              </span>
-                              <span className="font-medium">
-                                {step.description}
-                              </span>
-                              <Badge variant="outline" className="text-xs">
-                                {step.time} min
-                              </Badge>
-                            </div>
-                            {step.amount && (
-                              <p className="text-sm text-muted-foreground">
-                                Cantidad: {step.amount}
-                              </p>
-                            )}
-                            {step.temperature && (
-                              <p className="text-sm text-muted-foreground">
-                                Temperatura: {step.temperature}°C
-                              </p>
-                            )}
-                            {isCompleted && completedInfo && (
-                              <p className="text-xs text-green-600 mt-1">
-                                ✓ Completado:{" "}
-                                {formatDate(completedInfo.completedAt)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+              {boilingSteps.length > 0 ? (
+                <div className="relative px-8 pb-16">
+                  {/* Barra de progreso principal */}
+                  <div className="w-full h-3 bg-gray-200 rounded-full">
+                    <div
+                      className="h-3 bg-orange-500 rounded-full transition-all duration-1000"
+                      style={{ width: "100%" }} // Mostrar completo en el histórico
+                    />
+                  </div>
+
+                  {/* Marcadores de pasos agrupados */}
+                  <div className="relative mt-6">
+                    {(() => {
+                      const boilTime = session.recipe?.boilTime || 60;
+                      const groupedSteps = groupSteps(
+                        boilingSteps,
+                        boilTime,
+                        true,
+                        false
                       );
-                    })
-                ) : (
-                  <p className="text-muted-foreground text-center py-4">
-                    No hay pasos de cocción definidos
-                  </p>
-                )}
-              </div>
+
+                      return groupedSteps.map((group, groupIndex) => {
+                        const hasMultipleSteps = group.steps.length > 1;
+                        const primaryStep = group.steps[0];
+                        const mashTime = session.recipe?.mashTime || 60;
+                        const adjustedTime = group.time - mashTime;
+
+                        return (
+                          <Popover key={groupIndex}>
+                            <PopoverTrigger asChild>
+                              <div
+                                className="absolute transform -translate-x-1/2 cursor-pointer hover:scale-110 transition-transform"
+                                style={{ left: `${group.position}%` }}
+                              >
+                                <div className="flex flex-col items-center">
+                                  <div className="relative">
+                                    <div
+                                      className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg ${
+                                        group.steps.every((step) =>
+                                          isStepCompleted(step.id)
+                                        )
+                                          ? "bg-green-500 text-white"
+                                          : "bg-gray-300 text-gray-600"
+                                      }`}
+                                    >
+                                      <span className="text-lg">
+                                        {hasMultipleSteps
+                                          ? "📋"
+                                          : getStepTypeIcon(primaryStep.type)}
+                                      </span>
+                                    </div>
+                                    {/* Marca distintiva para pasos personalizados */}
+                                    {group.steps.some(
+                                      (step: any) => step.isCustomStep
+                                    ) && (
+                                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-xs font-bold">
+                                          +
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 text-xs text-center max-w-20">
+                                    <div className="font-medium text-gray-700">
+                                      {adjustedTime}m
+                                    </div>
+                                    <div className="text-gray-600 text-xs truncate">
+                                      {hasMultipleSteps
+                                        ? `${group.steps.length} pasos`
+                                        : primaryStep.description.length > 15
+                                        ? primaryStep.description.substring(
+                                            0,
+                                            15
+                                          ) + "..."
+                                        : primaryStep.description}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-96">
+                              <div className="space-y-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xl">
+                                    {hasMultipleSteps
+                                      ? "📋"
+                                      : getStepTypeIcon(primaryStep.type)}
+                                  </span>
+                                  <h4 className="font-medium">
+                                    {hasMultipleSteps
+                                      ? `${group.steps.length} pasos en minuto ${adjustedTime} de cocción`
+                                      : primaryStep.description}
+                                  </h4>
+                                </div>
+
+                                <div className="space-y-3 max-h-80 overflow-y-auto">
+                                  {group.steps.map((step) => {
+                                    const isCompleted = isStepCompleted(
+                                      step.id
+                                    );
+                                    const completedInfo = getCompletedStepInfo(
+                                      step.id
+                                    );
+                                    const stepAdjustedTime =
+                                      step.time - mashTime;
+
+                                    return (
+                                      <div
+                                        key={step.id}
+                                        className={`p-3 rounded-lg border ${
+                                          isCompleted
+                                            ? "bg-orange-50 border-orange-200"
+                                            : "bg-gray-50 border-gray-200"
+                                        }`}
+                                      >
+                                        <div className="flex items-start gap-3">
+                                          <div className="mt-1">
+                                            {isCompleted ? (
+                                              <CheckCircle className="h-4 w-4 text-orange-600" />
+                                            ) : (
+                                              <Circle className="h-4 w-4 text-gray-400" />
+                                            )}
+                                          </div>
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                              <span className="text-sm">
+                                                {getStepTypeIcon(step.type)}
+                                              </span>
+                                              <span className="font-medium text-sm">
+                                                {step.description}
+                                              </span>
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs"
+                                              >
+                                                {stepAdjustedTime}m cocción
+                                              </Badge>
+                                              {(step as any).isCustomStep && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="bg-blue-50 border-blue-200 text-blue-700 text-xs"
+                                                >
+                                                  + Personalizado
+                                                </Badge>
+                                              )}
+                                            </div>
+                                            {step.amount && (
+                                              <p className="text-xs text-muted-foreground">
+                                                Cantidad: {step.amount}
+                                              </p>
+                                            )}
+                                            {step.temperature && (
+                                              <p className="text-xs text-muted-foreground">
+                                                Temperatura: {step.temperature}
+                                                °C
+                                              </p>
+                                            )}
+                                            {isCompleted && completedInfo && (
+                                              <p className="text-xs text-orange-600 mt-1">
+                                                ✓{" "}
+                                                {formatDate(
+                                                  completedInfo.completedAt
+                                                )}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  No hay pasos de cocción definidos
+                </p>
+              )}
             </div>
 
             <Separator />
@@ -510,69 +928,232 @@ export default function BatchDetailsModal({
                 <Timer className="h-5 w-5 text-purple-600" />
                 Timeline de Fermentación
               </h3>
-              <div className="space-y-3">
-                {fermentationSteps.length > 0 ? (
-                  fermentationSteps
-                    .sort((a, b) => a.time - b.time)
-                    .map((step) => {
-                      const isCompleted = isStepCompleted(step.id);
-                      const completedInfo = getCompletedStepInfo(step.id);
-                      const fermentationDay = Math.floor(step.time / 1440);
 
-                      return (
-                        <div
-                          key={step.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg border ${
-                            isCompleted
-                              ? "bg-purple-50 border-purple-200"
-                              : "bg-gray-50 border-gray-200"
-                          }`}
-                        >
-                          <div className="mt-1">
-                            {isCompleted ? (
-                              <CheckCircle className="h-5 w-5 text-purple-600" />
-                            ) : (
-                              <Circle className="h-5 w-5 text-gray-400" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-lg">
-                                {getStepTypeIcon(step.type)}
-                              </span>
-                              <span className="font-medium">
-                                {step.description}
-                              </span>
-                              <Badge variant="outline" className="text-xs">
-                                Día {fermentationDay}
-                              </Badge>
-                            </div>
-                            {step.amount && (
-                              <p className="text-sm text-muted-foreground">
-                                Cantidad: {step.amount}
-                              </p>
-                            )}
-                            {step.temperature && (
-                              <p className="text-sm text-muted-foreground">
-                                Temperatura: {step.temperature}°C
-                              </p>
-                            )}
-                            {isCompleted && completedInfo && (
-                              <p className="text-xs text-purple-600 mt-1">
-                                ✓ Completado:{" "}
-                                {formatDate(completedInfo.completedAt)}
-                              </p>
-                            )}
+              {fermentationSteps.length > 0 ? (
+                <div className="relative px-8 pb-16">
+                  {/* Barra de progreso de fermentación */}
+                  <div className="w-full h-3 bg-gray-200 rounded-full">
+                    <div
+                      className="h-3 bg-purple-500 rounded-full transition-all duration-1000"
+                      style={{ width: "100%" }} // Mostrar completo en el histórico
+                    />
+                  </div>
+
+                  {/* Marcadores de fermentación agrupados */}
+                  <div className="relative mt-6">
+                    {/* Inicio de fermentación */}
+                    <div
+                      className="absolute transform -translate-x-1/2"
+                      style={{ left: "0%" }}
+                    >
+                      <div className="flex flex-col items-center">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-purple-500 text-white shadow-lg">
+                          <FlaskConical className="h-5 w-5" />
+                        </div>
+                        <div className="mt-2 text-xs text-center">
+                          <div className="font-medium text-gray-700">Día 0</div>
+                          <div className="text-gray-600">
+                            Inicio fermentación
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Pasos de fermentación agrupados */}
+                    {(() => {
+                      const maxFermentationDays =
+                        session.recipe?.fermentationDays || 14;
+                      const groupedSteps = groupSteps(
+                        fermentationSteps,
+                        maxFermentationDays,
+                        false,
+                        false
                       );
-                    })
-                ) : (
-                  <p className="text-muted-foreground text-center py-4">
-                    No hay pasos de fermentación definidos
-                  </p>
-                )}
-              </div>
+
+                      return groupedSteps.map((group, groupIndex) => {
+                        const hasMultipleSteps = group.steps.length > 1;
+                        const primaryStep = group.steps[0];
+
+                        return (
+                          <Popover key={groupIndex}>
+                            <PopoverTrigger asChild>
+                              <div
+                                className="absolute transform -translate-x-1/2 cursor-pointer hover:scale-110 transition-transform"
+                                style={{
+                                  left: `${Math.min(group.position, 90)}%`,
+                                }}
+                              >
+                                <div className="flex flex-col items-center">
+                                  <div className="relative">
+                                    <div
+                                      className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg ${
+                                        group.steps.every((step) =>
+                                          isStepCompleted(step.id)
+                                        )
+                                          ? "bg-purple-500 text-white"
+                                          : "bg-gray-300 text-gray-600"
+                                      }`}
+                                    >
+                                      <span className="text-lg">
+                                        {hasMultipleSteps
+                                          ? "📋"
+                                          : getStepTypeIcon(primaryStep.type)}
+                                      </span>
+                                    </div>
+                                    {/* Marca distintiva para pasos personalizados */}
+                                    {group.steps.some(
+                                      (step: any) => step.isCustomStep
+                                    ) && (
+                                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-xs font-bold">
+                                          +
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 text-xs text-center max-w-20">
+                                    <div className="font-medium text-gray-700">
+                                      Día {group.time}
+                                    </div>
+                                    <div className="text-gray-600 text-xs truncate">
+                                      {hasMultipleSteps
+                                        ? `${group.steps.length} pasos`
+                                        : primaryStep.description.length > 15
+                                        ? primaryStep.description.substring(
+                                            0,
+                                            15
+                                          ) + "..."
+                                        : primaryStep.description}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-96">
+                              <div className="space-y-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xl">
+                                    {hasMultipleSteps
+                                      ? "📋"
+                                      : getStepTypeIcon(primaryStep.type)}
+                                  </span>
+                                  <h4 className="font-medium">
+                                    {hasMultipleSteps
+                                      ? `${group.steps.length} pasos en día ${group.time}`
+                                      : primaryStep.description}
+                                  </h4>
+                                </div>
+
+                                <div className="space-y-3 max-h-80 overflow-y-auto">
+                                  {group.steps.map((step) => {
+                                    const isCompleted = isStepCompleted(
+                                      step.id
+                                    );
+                                    const completedInfo = getCompletedStepInfo(
+                                      step.id
+                                    );
+                                    const fermentationDay = Math.floor(
+                                      step.time / 1440
+                                    );
+
+                                    return (
+                                      <div
+                                        key={step.id}
+                                        className={`p-3 rounded-lg border ${
+                                          isCompleted
+                                            ? "bg-purple-50 border-purple-200"
+                                            : "bg-gray-50 border-gray-200"
+                                        }`}
+                                      >
+                                        <div className="flex items-start gap-3">
+                                          <div className="mt-1">
+                                            {isCompleted ? (
+                                              <CheckCircle className="h-4 w-4 text-purple-600" />
+                                            ) : (
+                                              <Circle className="h-4 w-4 text-gray-400" />
+                                            )}
+                                          </div>
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                              <span className="text-sm">
+                                                {getStepTypeIcon(step.type)}
+                                              </span>
+                                              <span className="font-medium text-sm">
+                                                {step.description}
+                                              </span>
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs"
+                                              >
+                                                Día {fermentationDay}
+                                              </Badge>
+                                              {(step as any).isCustomStep && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="bg-blue-50 border-blue-200 text-blue-700 text-xs"
+                                                >
+                                                  + Personalizado
+                                                </Badge>
+                                              )}
+                                            </div>
+                                            {step.amount && (
+                                              <p className="text-xs text-muted-foreground">
+                                                Cantidad: {step.amount}
+                                              </p>
+                                            )}
+                                            {step.temperature && (
+                                              <p className="text-xs text-muted-foreground">
+                                                Temperatura: {step.temperature}
+                                                °C
+                                              </p>
+                                            )}
+                                            {isCompleted && completedInfo && (
+                                              <p className="text-xs text-purple-600 mt-1">
+                                                ✓{" "}
+                                                {formatDate(
+                                                  completedInfo.completedAt
+                                                )}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      });
+                    })()}
+
+                    {/* Final de fermentación */}
+                    <div
+                      className="absolute transform -translate-x-1/2"
+                      style={{ left: "100%" }}
+                    >
+                      <div className="flex flex-col items-center">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-500 text-white shadow-lg">
+                          <CheckCircle className="h-5 w-5" />
+                        </div>
+                        <div className="mt-2 text-xs text-center">
+                          <div className="font-medium text-gray-700">
+                            Día {session.recipe?.fermentationDays || 14}
+                          </div>
+                          <div className="text-gray-600">
+                            Fermentación completa
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  No hay pasos de fermentación definidos
+                </p>
+              )}
             </div>
 
             {/* Notas del Batch */}

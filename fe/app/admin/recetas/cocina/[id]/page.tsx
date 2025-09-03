@@ -16,6 +16,9 @@ import {
   addRecipeStep,
   updateRecipeStep,
   deleteRecipeStep,
+  addSessionCustomStep,
+  updateSessionCustomStep,
+  deleteSessionCustomStep,
   getBrewingStatus,
 } from "@/services/private";
 import { Button } from "@/components/ui/button";
@@ -85,6 +88,7 @@ interface RecipeStep {
   description: string;
   amount?: string;
   temperature?: number;
+  isCustomStep?: boolean; // Para identificar pasos personalizados de sesión
 }
 
 interface BrewingSession {
@@ -265,6 +269,14 @@ export default function CookingPage() {
     status: "not-started",
   });
 
+  // Estados para diálogos de confirmación
+  const [showCompleteBrewingDialog, setShowCompleteBrewingDialog] =
+    useState(false);
+  const [showResetTimerDialog, setShowResetTimerDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [dialogMessage, setDialogMessage] = useState("");
+
   // Función para calcular el tiempo transcurrido basado en fechas de la BD (solo para carga inicial)
   const calculateElapsedTime = useCallback(
     async (recipe: Recipe) => {
@@ -273,10 +285,28 @@ export default function CookingPage() {
         const result = await callEndpointSilent(getBrewingStatus(recipe.id));
         const data = result?.data;
 
-        if (data?.hasActiveSession && data.activeSession) {
-          const session = data.activeSession;
+        if (data?.hasActiveSession) {
+          // Priorizar activeSession, usar currentSession como fallback
+          const session = data.activeSession || data.currentSession;
+          if (session.status === "fermenting") {
+            // Para fermentación, calcular días desde fermentationStartDate
+            if (session.fermentationStartDate) {
+              const fermentationStart = new Date(
+                session.fermentationStartDate
+              ).getTime();
+              const currentTime = Date.now();
 
-          if (session.status === "brewing" && session.isRunning) {
+              // Calcular tiempo total transcurrido en segundos desde fermentationStartDate
+              const totalSecondsElapsed = Math.floor(
+                (currentTime - fermentationStart) / 1000
+              );
+
+              // Retornar tiempo total en segundos para que el timer muestre el tiempo real
+              return totalSecondsElapsed;
+            } else {
+              return 0;
+            }
+          } else if (session.status === "brewing" && session.isRunning) {
             // Calcular tiempo desde inicio considerando pausas
             const startTime = new Date(session.startDate).getTime();
             const currentTime = Date.now();
@@ -310,12 +340,9 @@ export default function CookingPage() {
         const result = await callEndpointSilent(getBrewingStatus(recipe.id));
         const data = result?.data;
 
-        console.log("getActiveSessionState - data completa:", data);
-
         if (data?.hasActiveSession) {
           // Usar currentSession que tiene los datos completos, o activeSession como fallback
           const session = data.currentSession || data.activeSession;
-          console.log("getActiveSessionState - session encontrada:", session);
 
           if (session) {
             return {
@@ -328,7 +355,6 @@ export default function CookingPage() {
           }
         }
 
-        console.log("getActiveSessionState - no hay sesión activa");
         return {
           hasActiveSession: false,
           isRunning: false,
@@ -530,10 +556,17 @@ export default function CookingPage() {
   };
 
   // Función para resetear el timer
-  const resetTimer = async () => {
+  const resetTimer = () => {
+    setShowResetTimerDialog(true);
+  };
+
+  // Función para confirmar reset del timer
+  const confirmResetTimer = async () => {
     if (!recipe) return;
 
     try {
+      setShowResetTimerDialog(false);
+
       // Completar la sesión actual
       await callEndpoint(completeBrewing(recipe.id));
 
@@ -545,8 +578,15 @@ export default function CookingPage() {
       // Actualizar estado de sesión
       const newSessionState = await getActiveSessionState(recipe);
       setSessionState(newSessionState);
+
+      setDialogMessage("Timer reiniciado correctamente.");
+      setShowSuccessDialog(true);
     } catch (error) {
       console.error("Error resetting timer:", error);
+      setDialogMessage(
+        "Error al reiniciar el timer. Por favor, intenta nuevamente."
+      );
+      setShowErrorDialog(true);
     }
   };
 
@@ -587,14 +627,11 @@ export default function CookingPage() {
         updateData.calculatedABV = calculateABV(og, fg);
       }
 
-      console.log("Enviando update debounced:", updateData);
-
       // Persistir en el backend solo si hay datos válidos
       if (Object.keys(updateData).length > 0) {
         await callEndpointSilent(
           updateGravityMeasurements(recipe.id, updateData)
         );
-        console.log("Update completado exitosamente");
       }
 
       // Limpiar pending updates DESPUÉS de la actualización exitosa
@@ -717,9 +754,6 @@ export default function CookingPage() {
             sessionState.isPaused !== newSessionState.isPaused ||
             sessionState.hasActiveSession !== newSessionState.hasActiveSession
           ) {
-            console.log(
-              "Detectado cambio de estado de sesión, actualizando..."
-            );
             setSessionState(newSessionState);
           }
 
@@ -733,9 +767,6 @@ export default function CookingPage() {
 
             // Si la diferencia es mayor a 10 segundos, sincronizar
             if (timeDiff > 10) {
-              console.log(
-                `Sincronizando tiempo: local=${currentTime}s, backend=${backendTime}s`
-              );
               setCurrentTime(backendTime);
             }
           }
@@ -804,15 +835,6 @@ export default function CookingPage() {
         // el timer debería estar pausado en ese momento
         const pauseTimeInSeconds = lastTemperatureStep.time * 60;
 
-        console.log(
-          "Detectado paso de temperatura que requiere pausa automática:",
-          {
-            step: lastTemperatureStep,
-            currentTime: currentTimeInSeconds,
-            shouldPauseAt: pauseTimeInSeconds,
-          }
-        );
-
         return {
           shouldBePaused: true,
           pauseTime: pauseTimeInSeconds,
@@ -871,8 +893,6 @@ export default function CookingPage() {
         const result = await callEndpoint(getRecipeById(recipeId));
 
         if (result?.data) {
-          setRecipe(result.data);
-
           // Cargar datos de gravedad si existen en la receta
           if (result.data.originalGravity) {
             setOriginalGravity(result.data.originalGravity);
@@ -894,30 +914,34 @@ export default function CookingPage() {
           const sessionState = await getActiveSessionState(result.data);
           setSessionState(sessionState);
 
-          // Cargar datos de gravedad desde la sesión activa si existe
+          // ACTUALIZAR ESTADO DE FERMENTACIÓN automáticamente
+          let updatedRecipe = { ...result.data };
           if (sessionState.hasActiveSession && sessionState.session) {
             const session = sessionState.session;
 
-            console.log("Cargando datos de sesión:", session);
-            console.log("Session originalGravity:", session.originalGravity);
-            console.log("Session finalGravity:", session.finalGravity);
-            console.log("Session batchLiters:", session.batchLiters);
+            // Si la sesión está en fermenting, actualizar brewingStatus automáticamente
+            if (session.status === "fermenting") {
+              updatedRecipe.brewingStatus = "fermenting";
+            } else if (session.status === "brewing") {
+              updatedRecipe.brewingStatus = "brewing";
+            }
+          }
+
+          // Establecer la receta con el estado actualizado
+          setRecipe(updatedRecipe);
+          if (sessionState.hasActiveSession && sessionState.session) {
+            const session = sessionState.session;
 
             if (
               session.originalGravity !== undefined &&
               session.originalGravity !== null
             ) {
-              console.log(
-                "Aplicando originalGravity:",
-                session.originalGravity
-              );
               setOriginalGravity(session.originalGravity);
             }
             if (
               session.finalGravity !== undefined &&
               session.finalGravity !== null
             ) {
-              console.log("Aplicando finalGravity:", session.finalGravity);
               setFinalGravity(session.finalGravity);
             }
             if (
@@ -943,14 +967,12 @@ export default function CookingPage() {
               session.batchLiters !== undefined &&
               session.batchLiters !== null
             ) {
-              console.log("Aplicando batchLiters:", session.batchLiters);
               setBatchLiters(session.batchLiters);
             }
             if (
               session.batchNotes !== undefined &&
               session.batchNotes !== null
             ) {
-              console.log("Aplicando batchNotes:", session.batchNotes);
               setIsUpdatingFromBackend(true);
               setBatchNotes(session.batchNotes);
               currentNotesRef.current = session.batchNotes;
@@ -961,7 +983,6 @@ export default function CookingPage() {
           // Si hay una sesión activa, cargar el tiempo actual
           if (sessionState.hasActiveSession && sessionState.session) {
             let elapsedTime = await calculateElapsedTime(result.data);
-
             // Cargar pasos completados ANTES de verificar auto-pausa
             let completedStepsSet = new Set<string>();
             if (sessionState.session.completedSteps) {
@@ -985,10 +1006,6 @@ export default function CookingPage() {
                 pauseCheck.pauseTime !== undefined
               ) {
                 // El timer debería estar pausado, ajustar el tiempo y pausar
-                console.log(
-                  "Timer debería estar pausado por cambio de temperatura, ajustando..."
-                );
-
                 // Ajustar el tiempo al momento donde debería haberse pausado
                 elapsedTime = pauseCheck.pauseTime;
                 setCurrentTime(elapsedTime);
@@ -1007,11 +1024,23 @@ export default function CookingPage() {
                 }
               } else {
                 setCurrentTime(elapsedTime);
-                setIsRunning(sessionState.isRunning);
+
+                // En modo fermentación, el timer siempre debe estar corriendo
+                if (sessionState.status === "fermenting") {
+                  setIsRunning(true);
+                } else {
+                  setIsRunning(sessionState.isRunning);
+                }
               }
             } else {
               setCurrentTime(elapsedTime);
-              setIsRunning(sessionState.isRunning);
+
+              // En modo fermentación, el timer siempre debe estar corriendo
+              if (sessionState.status === "fermenting") {
+                setIsRunning(true);
+              } else {
+                setIsRunning(sessionState.isRunning);
+              }
             }
           }
         }
@@ -1071,10 +1100,6 @@ export default function CookingPage() {
               stepToAlert.temperature !== undefined
             ) {
               pauseTimerRef.current?.();
-              console.log(
-                "Timer pausado automáticamente para cambio de temperatura:",
-                stepToAlert.description
-              );
             }
 
             // Reproducir sonido de alerta (múltiples veces para cambios críticos)
@@ -1168,9 +1193,6 @@ export default function CookingPage() {
             currentSessionState.hasActiveSession !==
               newSessionState.hasActiveSession
           ) {
-            console.log(
-              "Detectado cambio de estado de sesión, actualizando..."
-            );
             setSessionState(newSessionState);
           }
 
@@ -1185,9 +1207,6 @@ export default function CookingPage() {
 
             // Solo sincronizar si hay una diferencia muy grande (posible desconexión)
             if (timeDiff > 30) {
-              console.log(
-                `Sincronizando tiempo por gran diferencia: local=${currentTimeValue}s, backend=${backendTime}s`
-              );
               setCurrentTime(backendTime);
             }
           }
@@ -1209,8 +1228,6 @@ export default function CookingPage() {
     if (sessionState.hasActiveSession && sessionState.session) {
       const session = sessionState.session;
 
-      console.log("Sincronizando datos de sessionState:", session);
-
       // Solo actualizar si los valores han cambiado para evitar loops
       // Y solo si no hay actualizaciones pendientes (usuario no está editando)
       if (!pendingUpdateRef.current) {
@@ -1219,10 +1236,6 @@ export default function CookingPage() {
           session.originalGravity !== null &&
           session.originalGravity !== originalGravity
         ) {
-          console.log(
-            "Actualizando originalGravity desde sessionState:",
-            session.originalGravity
-          );
           setOriginalGravity(session.originalGravity);
         }
 
@@ -1231,10 +1244,6 @@ export default function CookingPage() {
           session.finalGravity !== null &&
           session.finalGravity !== finalGravity
         ) {
-          console.log(
-            "Actualizando finalGravity desde sessionState:",
-            session.finalGravity
-          );
           setFinalGravity(session.finalGravity);
         }
 
@@ -1243,10 +1252,6 @@ export default function CookingPage() {
           session.batchLiters !== null &&
           session.batchLiters !== batchLiters
         ) {
-          console.log(
-            "Actualizando batchLiters desde sessionState:",
-            session.batchLiters
-          );
           setBatchLiters(session.batchLiters);
         }
 
@@ -1255,10 +1260,6 @@ export default function CookingPage() {
           session.batchNotes !== null &&
           session.batchNotes !== batchNotes
         ) {
-          console.log(
-            "Actualizando batchNotes desde sessionState:",
-            session.batchNotes
-          );
           setIsUpdatingFromBackend(true);
           setBatchNotes(session.batchNotes);
           currentNotesRef.current = session.batchNotes;
@@ -1346,6 +1347,26 @@ export default function CookingPage() {
   }
 
   const formatTime = (seconds: number) => {
+    // Si la receta está en fermentación, mostrar días con formato HH:MM:SS
+    if (recipe?.brewingStatus === "fermenting") {
+      const days = Math.floor(seconds / (24 * 60 * 60));
+      const hours = Math.floor((seconds % (24 * 60 * 60)) / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+
+      if (days > 0) {
+        return `${days} día${days !== 1 ? "s" : ""} ${hours
+          .toString()
+          .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs
+          .toString()
+          .padStart(2, "0")}`;
+      }
+      return `${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
+
+    // Para cocción, mostrar formato normal de horas:minutos:segundos
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
@@ -1427,7 +1448,6 @@ export default function CookingPage() {
       if (
         error?.response?.data?.error?.includes("sesión de elaboración activa")
       ) {
-        console.log("Sesión ya activa, continuando con el timer local...");
         setIsRunning(true);
 
         // En caso de error, obtener estado actual
@@ -1492,12 +1512,52 @@ export default function CookingPage() {
   };
 
   const completeBrewingDay = () => {
-    setIsRunning(false);
-    if (recipe) {
-      setRecipe({
-        ...recipe,
-        brewingStatus: "fermenting",
-      });
+    setShowCompleteBrewingDialog(true);
+  };
+
+  // Función para confirmar completar día de cocción
+  const confirmCompleteBrewingDay = async () => {
+    if (!recipe) return;
+
+    try {
+      setShowCompleteBrewingDialog(false);
+
+      // Detener el timer
+      setIsRunning(false);
+
+      // Llamar al endpoint de completar brewing con estado "fermenting"
+      const response = await callEndpointSilent(
+        completeBrewing(recipe.id, { status: "fermenting" })
+      );
+
+      if (response?.data) {
+        // Actualizar la receta con el nuevo estado
+        setRecipe({
+          ...recipe,
+          brewingStatus: "fermenting",
+          currentSession: null, // La sesión se finaliza
+        });
+
+        // Actualizar estado de sesión
+        setSessionState({
+          hasActiveSession: false,
+          isRunning: false,
+          isPaused: false,
+          status: "fermenting",
+        });
+
+        // Mostrar mensaje de éxito
+        setDialogMessage(
+          "¡Día de cocción completado! La cerveza ha pasado a fermentación."
+        );
+        setShowSuccessDialog(true);
+      }
+    } catch (error) {
+      console.error("Error completing brewing day:", error);
+      setDialogMessage(
+        "Error al completar el día de cocción. Por favor, intenta nuevamente."
+      );
+      setShowErrorDialog(true);
     }
   };
 
@@ -1524,12 +1584,28 @@ export default function CookingPage() {
           temperature: newStep.temperature,
         };
 
-        await callEndpointSilent(addRecipeStep(recipe.id, stepData));
+        // Si hay una sesión activa, usar el endpoint de pasos personalizados de sesión
+        if (sessionState.hasActiveSession && sessionState.session?.sessionId) {
+          await callEndpointSilent(
+            addSessionCustomStep(
+              recipe.id,
+              sessionState.session.sessionId,
+              stepData
+            )
+          );
 
-        // Recargar receta para obtener el paso actualizado
-        const result = await callEndpointSilent(getRecipeById(recipe.id));
-        if (result?.data) {
-          setRecipe(result.data);
+          // Actualizar estado de sesión para mostrar el nuevo paso
+          const newSessionState = await getActiveSessionState(recipe);
+          setSessionState(newSessionState);
+        } else {
+          // Sin sesión activa, modificar la receta original
+          await callEndpointSilent(addRecipeStep(recipe.id, stepData));
+
+          // Recargar receta para obtener el paso actualizado
+          const result = await callEndpointSilent(getRecipeById(recipe.id));
+          if (result?.data) {
+            setRecipe(result.data);
+          }
         }
 
         setNewStep({
@@ -1559,14 +1635,34 @@ export default function CookingPage() {
           temperature: editingStep.temperature,
         };
 
-        await callEndpointSilent(
-          updateRecipeStep(recipe.id, editingStep.id, stepData)
-        );
+        // Verificar si es un paso personalizado usando la propiedad isCustomStep
+        const isCustomStep = editingStep.isCustomStep === true;
 
-        // Recargar receta para obtener el paso actualizado
-        const result = await callEndpointSilent(getRecipeById(recipe.id));
-        if (result?.data) {
-          setRecipe(result.data);
+        if (isCustomStep && sessionState.session?.sessionId) {
+          // Es un paso personalizado de sesión, usar el endpoint específico
+          await callEndpointSilent(
+            updateSessionCustomStep(
+              recipe.id,
+              sessionState.session.sessionId,
+              editingStep.id,
+              stepData
+            )
+          );
+
+          // Actualizar estado de sesión para mostrar los cambios
+          const newSessionState = await getActiveSessionState(recipe);
+          setSessionState(newSessionState);
+        } else {
+          // Es un paso original de la receta, usar el endpoint original
+          await callEndpointSilent(
+            updateRecipeStep(recipe.id, editingStep.id, stepData)
+          );
+
+          // Recargar receta para obtener el paso actualizado
+          const result = await callEndpointSilent(getRecipeById(recipe.id));
+          if (result?.data) {
+            setRecipe(result.data);
+          }
         }
 
         setEditingStep(null);
@@ -1580,12 +1676,32 @@ export default function CookingPage() {
   const removeStep = async (stepId: string) => {
     if (recipe) {
       try {
-        await callEndpointSilent(deleteRecipeStep(recipe.id, stepId));
+        // Verificar si es un paso personalizado buscándolo en customSteps
+        const customSteps = getCustomStepsFromSession();
+        const isCustomStep = customSteps.some((step) => step.id === stepId);
 
-        // Recargar receta para obtener los cambios
-        const result = await callEndpointSilent(getRecipeById(recipe.id));
-        if (result?.data) {
-          setRecipe(result.data);
+        if (isCustomStep && sessionState.session?.sessionId) {
+          // Es un paso personalizado de sesión, usar el endpoint específico
+          await callEndpointSilent(
+            deleteSessionCustomStep(
+              recipe.id,
+              sessionState.session.sessionId,
+              stepId
+            )
+          );
+
+          // Actualizar estado de sesión para reflejar la eliminación
+          const newSessionState = await getActiveSessionState(recipe);
+          setSessionState(newSessionState);
+        } else {
+          // Es un paso original de la receta, usar el endpoint original
+          await callEndpointSilent(deleteRecipeStep(recipe.id, stepId));
+
+          // Recargar receta para obtener los cambios
+          const result = await callEndpointSilent(getRecipeById(recipe.id));
+          if (result?.data) {
+            setRecipe(result.data);
+          }
         }
       } catch (error) {
         console.error("Error removing step:", error);
@@ -1593,9 +1709,38 @@ export default function CookingPage() {
     }
   };
 
-  // Separar pasos de cocción y fermentación
-  const brewingSteps = recipe.steps.filter((step) => step.time < 1440); // Menos de 24 horas
-  const fermentationSteps = recipe.steps.filter((step) => step.time >= 1440); // 24 horas o más
+  // Extraer pasos personalizados de la sesión activa
+  const getCustomStepsFromSession = () => {
+    if (
+      !sessionState.hasActiveSession ||
+      !sessionState.session?.completedSteps
+    ) {
+      return [];
+    }
+
+    const completedSteps = sessionState.session.completedSteps;
+
+    const customSteps = completedSteps
+      .filter(
+        (cs: any) => cs.customStep !== null && cs.customStep !== undefined
+      )
+      .map((cs: any) => ({
+        ...cs.customStep,
+        id: cs.stepId,
+        isCustomStep: true,
+      }));
+
+    return customSteps;
+  };
+
+  const customSteps = getCustomStepsFromSession();
+
+  // Combinar pasos de la receta con pasos personalizados de la sesión
+  const allSteps = [...recipe.steps, ...customSteps];
+
+  // Separar pasos de cocción y fermentación (incluyendo pasos personalizados)
+  const brewingSteps = allSteps.filter((step) => step.time < 1440); // Menos de 24 horas
+  const fermentationSteps = allSteps.filter((step) => step.time >= 1440); // 24 horas o más
 
   const sortedBrewingSteps = [...brewingSteps].sort((a, b) => a.time - b.time);
   const sortedFermentationSteps = [...fermentationSteps].sort(
@@ -1673,19 +1818,71 @@ export default function CookingPage() {
 
   // Timeline de fermentación
   const getFermentationProgress = () => {
-    if (!recipe.brewingStartDate || recipe.brewingStatus !== "fermenting")
+    if (recipe.brewingStatus !== "fermenting") return 0;
+
+    // Si tenemos el currentTime calculado correctamente, usarlo
+    if (currentTime > 0) {
+      const daysPassed = Math.floor(currentTime / (24 * 60 * 60));
+      const progress = Math.min(
+        (daysPassed / (recipe.fermentationDays || 14)) * 100,
+        100
+      );
+
+      return progress;
+    }
+
+    // Fallback: usar fermentationStartDate de la sesión activa o brewingStartDate
+    const sessionState = sessionStateRef.current;
+    let startDate;
+
+    if (
+      sessionState.hasActiveSession &&
+      sessionState.session?.fermentationStartDate
+    ) {
+      startDate = new Date(sessionState.session.fermentationStartDate);
+    } else if (recipe.brewingStartDate) {
+      startDate = new Date(recipe.brewingStartDate);
+    } else {
       return 0;
-    const startDate = new Date(recipe.brewingStartDate);
+    }
+
     const currentDate = new Date();
     const daysPassed = Math.floor(
       (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
     );
-    return Math.min((daysPassed / (recipe.fermentationDays || 14)) * 100, 100);
+    const progress = Math.min(
+      (daysPassed / (recipe.fermentationDays || 14)) * 100,
+      100
+    );
+
+    return progress;
   };
 
   const getFermentationDaysPassed = () => {
-    if (!recipe.brewingStartDate) return 0;
-    const startDate = new Date(recipe.brewingStartDate);
+    if (recipe.brewingStatus !== "fermenting") return 0;
+
+    // Si tenemos el currentTime calculado correctamente, usarlo
+    if (currentTime > 0) {
+      const daysPassed = Math.floor(currentTime / (24 * 60 * 60));
+
+      return daysPassed;
+    }
+
+    // Fallback: usar fermentationStartDate de la sesión activa o brewingStartDate
+    const sessionState = sessionStateRef.current;
+    let startDate;
+
+    if (
+      sessionState.hasActiveSession &&
+      sessionState.session?.fermentationStartDate
+    ) {
+      startDate = new Date(sessionState.session.fermentationStartDate);
+    } else if (recipe.brewingStartDate) {
+      startDate = new Date(recipe.brewingStartDate);
+    } else {
+      return 0;
+    }
+
     const currentDate = new Date();
     return Math.floor(
       (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -1885,6 +2082,16 @@ export default function CookingPage() {
                                     </span>
                                   )}
                                 </div>
+                                {/* Marca distintiva para pasos personalizados */}
+                                {group.steps.some(
+                                  (step: any) => step.isCustomStep
+                                ) && (
+                                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">
+                                      +
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                               <div className="mt-2 text-xs text-center max-w-20">
                                 <div className="font-medium">{group.time}m</div>
@@ -1920,13 +2127,21 @@ export default function CookingPage() {
                                     key={step.id}
                                     className="border rounded-lg p-3 space-y-2"
                                   >
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-lg">
                                         {stepTypeInfo.icon}
                                       </span>
                                       <Badge className={stepTypeInfo.color}>
                                         {stepTypeInfo.label}
                                       </Badge>
+                                      {(step as any).isCustomStep && (
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-blue-50 border-blue-200 text-blue-700"
+                                        >
+                                          + Custom
+                                        </Badge>
+                                      )}
                                       {stepStatus === "current" && (
                                         <Badge
                                           variant="outline"
@@ -2089,6 +2304,16 @@ export default function CookingPage() {
                                     </span>
                                   )}
                                 </div>
+                                {/* Marca distintiva para pasos personalizados */}
+                                {group.steps.some(
+                                  (step: any) => step.isCustomStep
+                                ) && (
+                                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">
+                                      +
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                               <div className="mt-2 text-xs text-center max-w-24">
                                 <div className="font-medium">
@@ -2130,13 +2355,21 @@ export default function CookingPage() {
                                     key={step.id}
                                     className="border rounded-lg p-3 space-y-2"
                                   >
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-lg">
                                         {stepTypeInfo.icon}
                                       </span>
                                       <Badge className={stepTypeInfo.color}>
                                         {stepTypeInfo.label}
                                       </Badge>
+                                      {(step as any).isCustomStep && (
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-blue-50 border-blue-200 text-blue-700"
+                                        >
+                                          + Personalizado
+                                        </Badge>
+                                      )}
                                       {stepIsPassed && (
                                         <Badge
                                           variant="outline"
@@ -3088,6 +3321,136 @@ export default function CookingPage() {
           </Card>
         </div>
       )}
+
+      {/* Diálogo de confirmación para completar día de cocción */}
+      <Dialog
+        open={showCompleteBrewingDialog}
+        onOpenChange={setShowCompleteBrewingDialog}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FlaskConical className="h-5 w-5 text-purple-600" />
+              Completar Día de Cocción
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres completar el día de cocción e iniciar
+              la fermentación?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm font-medium">Importante</span>
+            </div>
+            <p className="text-sm text-amber-700 mt-1">
+              Una vez confirmado, no podrás volver al estado de cocción. La
+              cerveza pasará automáticamente a fermentación.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCompleteBrewingDialog(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmCompleteBrewingDay}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              <FlaskConical className="mr-2 h-4 w-4" />
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de confirmación para reiniciar timer */}
+      <Dialog
+        open={showResetTimerDialog}
+        onOpenChange={setShowResetTimerDialog}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-red-600" />
+              Reiniciar Timer
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres reiniciar la sesión de cocción?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2 text-red-800">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm font-medium">Advertencia</span>
+            </div>
+            <p className="text-sm text-red-700 mt-1">
+              Se perderá todo el progreso actual de la sesión de cocción. Esta
+              acción no se puede deshacer.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowResetTimerDialog(false)}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={confirmResetTimer} variant="destructive">
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Reiniciar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de éxito */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="h-5 w-5" />
+              ¡Éxito!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-800">{dialogMessage}</p>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setShowSuccessDialog(false)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Entendido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de error */}
+      <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              Error
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-800">{dialogMessage}</p>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setShowErrorDialog(false)}
+              variant="destructive"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

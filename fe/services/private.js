@@ -962,7 +962,7 @@ export const resumeBrewing = (recipeId) => {
 };
 
 // Completar el proceso de cocción
-export const completeBrewing = (recipeId) => {
+export const completeBrewing = (recipeId, data = {}) => {
   const controller = loadAbort();
   const headers = getAxiosHeaders();
 
@@ -974,7 +974,7 @@ export const completeBrewing = (recipeId) => {
     call: axios
       .post(
         process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/complete`,
-        {},
+        data,
         headers,
         { signal: controller.signal }
       )
@@ -1250,6 +1250,85 @@ export const deleteRecipeStep = (recipeId, stepId) => {
   };
 };
 
+// Agregar paso personalizado a sesión de brewing
+export const addSessionCustomStep = (recipeId, sessionId, stepData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/brewing-sessions/${sessionId}/custom-steps`,
+        stepData,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Actualizar paso personalizado de sesión
+export const updateSessionCustomStep = (
+  recipeId,
+  sessionId,
+  stepId,
+  stepData
+) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .put(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/brewing-sessions/${sessionId}/custom-steps/${stepId}`,
+        stepData,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Eliminar paso personalizado de sesión
+export const deleteSessionCustomStep = (recipeId, sessionId, stepId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .delete(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/brewing-sessions/${sessionId}/custom-steps/${stepId}`,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
 /**********
  * Dashboard Analytics
  ************/
@@ -1332,4 +1411,84 @@ const notifyError = (error) => {
     //   }
     // );
   }
+};
+
+/**********
+ * PASOS PERSONALIZADOS DE SESIÓN
+ ************/
+
+// Agregar paso personalizado a una sesión específica
+export const addCustomStepToSession = (sessionId, stepData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .post(`${baseUrl}/brewing-sessions/${sessionId}/custom-steps`, stepData, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error adding custom step:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Editar paso personalizado de una sesión específica
+export const updateCustomStepInSession = (sessionId, stepId, stepData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .put(
+        `${baseUrl}/brewing-sessions/${sessionId}/custom-steps/${stepId}`,
+        stepData,
+        {
+          ...headers,
+          signal: controller.signal,
+        }
+      )
+      .catch((error) => {
+        console.error("Error updating custom step:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Eliminar paso personalizado de una sesión específica
+export const deleteCustomStepFromSession = (sessionId, stepId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .delete(
+        `${baseUrl}/brewing-sessions/${sessionId}/custom-steps/${stepId}`,
+        {
+          ...headers,
+          signal: controller.signal,
+        }
+      )
+      .catch((error) => {
+        console.error("Error deleting custom step:", error);
+        throw error;
+      }),
+    controller,
+  };
 };
