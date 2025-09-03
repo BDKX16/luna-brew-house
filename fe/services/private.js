@@ -767,6 +767,490 @@ export const getSubscriptionStats = () => {
 };
 
 /**********
+ * GESTIÓN DE RECETAS
+ ************/
+
+// Obtener todas las recetas
+export const getRecipes = () => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .get(process.env.NEXT_PUBLIC_API_URL + "/admin/recipes", headers, {
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Obtener una receta por ID
+export const getRecipeById = (recipeId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .get(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}`,
+        headers,
+        {
+          signal: controller.signal,
+        }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Crear una nueva receta
+export const createRecipe = (recipeData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL + "/admin/recipes",
+        recipeData,
+        headers,
+        {
+          signal: controller.signal,
+        }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Actualizar una receta
+export const updateRecipe = (recipeId, recipeData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .put(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}`,
+        recipeData,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Eliminar una receta
+export const deleteRecipe = (recipeId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .delete(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}`,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Iniciar el proceso de cocción de una receta
+export const startBrewing = (recipeId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/start`,
+        {},
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Pausar el proceso de cocción
+export const pauseBrewing = (recipeId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/pause`,
+        {},
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Reanudar el proceso de cocción
+export const resumeBrewing = (recipeId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/resume`,
+        {},
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Completar el proceso de cocción
+export const completeBrewing = (recipeId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/complete`,
+        {},
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Obtener el estado actual de brewing
+export const getBrewingStatus = (recipeId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .get(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/status`,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Marcar un paso como completado
+export const completeStep = (recipeId, stepId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/steps/${stepId}/complete`,
+        {},
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Desmarcar un paso como no completado
+export const uncompleteStep = (recipeId, stepId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .delete(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/steps/${stepId}/complete`,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Actualizar el tiempo actual de cocción
+export const updateBrewingTime = (recipeId, currentTime) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .patch(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/time`,
+        { currentTime },
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Actualizar mediciones de gravedad y ABV
+export const updateGravityMeasurements = (recipeId, data) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .patch(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/gravity`,
+        data,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Obtener historial de sesiones de brewing
+export const getBrewingSessions = () => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .get(
+        process.env.NEXT_PUBLIC_API_URL + "/admin/brewing-sessions",
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Eliminar una sesión de brewing
+export const deleteBrewingSession = (sessionId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .delete(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/brewing-sessions/${sessionId}`,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Actualizar fecha de envasado de una sesión de brewing
+export const updateBrewingSessionPackaging = (sessionId, packagingData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .patch(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/brewing-sessions/${sessionId}/packaging`,
+        packagingData,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Agregar un nuevo paso a la receta
+export const addRecipeStep = (recipeId, stepData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/steps`,
+        stepData,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Actualizar un paso existente
+export const updateRecipeStep = (recipeId, stepId, stepData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .put(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/steps/${stepId}`,
+        stepData,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+// Eliminar un paso de la receta
+export const deleteRecipeStep = (recipeId, stepId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .delete(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/steps/${stepId}`,
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
+/**********
  * Dashboard Analytics
  ************/
 

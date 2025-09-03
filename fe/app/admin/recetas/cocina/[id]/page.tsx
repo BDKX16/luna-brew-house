@@ -1,7 +1,23 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import useFetchAndLoad from "@/hooks/useFetchAndLoad";
+import {
+  getRecipeById,
+  startBrewing,
+  pauseBrewing,
+  resumeBrewing,
+  completeBrewing,
+  completeStep,
+  uncompleteStep,
+  updateBrewingTime,
+  updateGravityMeasurements,
+  addRecipeStep,
+  updateRecipeStep,
+  deleteRecipeStep,
+  getBrewingStatus,
+} from "@/services/private";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -70,6 +87,25 @@ interface RecipeStep {
   temperature?: number;
 }
 
+interface BrewingSession {
+  sessionId: string;
+  startDate: string;
+  currentTime?: number;
+  isRunning: boolean;
+  isPaused: boolean;
+  pausedAt?: string;
+  resumedAt?: string;
+  completedSteps: { stepId: string; completedAt: string }[];
+  status: "not-started" | "brewing" | "fermenting" | "completed";
+  fermentationStartDate?: string;
+  notes?: string;
+  originalGravity?: number;
+  finalGravity?: number;
+  calculatedABV?: number;
+  batchLiters?: number;
+  packagingDate?: string;
+}
+
 interface Recipe {
   id: string;
   name: string;
@@ -84,15 +120,25 @@ interface Recipe {
   steps: RecipeStep[];
   createdAt: string;
   status: "Borrador" | "Activa" | "Archivada";
-  brewingStatus?: "not-started" | "brewing" | "fermenting" | "completed";
+  brewingStatus?:
+    | "not-started"
+    | "brewing"
+    | "paused"
+    | "fermenting"
+    | "completed";
   brewingStartDate?: string;
+  pausedAt?: string;
+  accumulatedTime?: number; // tiempo acumulado en segundos antes de pausas
+  currentTime?: number; // tiempo actual guardado en la BD
+  currentSession?: string; // ID de la sesión actual
+  brewingSessions?: BrewingSession[]; // Array de todas las sesiones
   fermentationDays?: number;
   // Datos técnicos adicionales
   mashTemp?: number;
   mashTime?: number;
   spargeTemp?: number;
-  originalGravity?: number;
-  finalGravity?: number;
+  targetOriginalGravity?: number;
+  targetFinalGravity?: number;
   efficiency?: number;
   waterProfile?: string;
   yeastStrain?: string;
@@ -135,13 +181,13 @@ const stepTypes = [
     value: "temperature-change",
     label: "Cambio de Temperatura",
     icon: "🌡️",
-    color: "bg-red-100 text-red-800",
+    color: "bg-blue-100 text-blue-800",
   },
   {
     value: "stirring",
     label: "Agitado",
     icon: "🥄",
-    color: "bg-blue-100 text-blue-800",
+    color: "bg-gray-100 text-gray-800",
   },
   {
     value: "other",
@@ -151,213 +197,25 @@ const stepTypes = [
   },
 ];
 
-// Mock data - en una app real vendría de una API
-const mockRecipes: Recipe[] = [
+// Tipos de proceso para facilitar la adición de pasos
+const processTypes = [
   {
-    id: "1",
-    name: "Luna Golden Ale",
-    style: "Golden Ale",
-    description: "Una cerveza dorada refrescante con notas cítricas",
-    abv: 5.2,
-    ibu: 25,
-    srm: 4,
-    difficulty: "Fácil",
-    batchSize: 20,
-    boilTime: 60,
-    steps: [
-      {
-        id: "1",
-        time: 0,
-        type: "temperature-change",
-        description: "Calentar agua a temperatura de macerado",
-        temperature: 65,
-      },
-      {
-        id: "2",
-        time: 5,
-        type: "other",
-        description: "Agregar malta base",
-        amount: "4 kg Pilsner",
-      },
-      {
-        id: "3",
-        time: 65,
-        type: "temperature-change",
-        description: "Elevar temperatura para mash out",
-        temperature: 78,
-      },
-      { id: "4", time: 75, type: "other", description: "Iniciar hervido" },
-      {
-        id: "5",
-        time: 90,
-        type: "hop-addition",
-        description: "Primera adición de lúpulo",
-        amount: "25g Cascade (60min)",
-      },
-      {
-        id: "6",
-        time: 135,
-        type: "hop-addition",
-        description: "Segunda adición de lúpulo",
-        amount: "15g Centennial (15min)",
-      },
-      {
-        id: "7",
-        time: 150,
-        type: "hop-addition",
-        description: "Adición aromática",
-        amount: "10g Cascade (0min)",
-      },
-      {
-        id: "8",
-        time: 150,
-        type: "other",
-        description: "Finalizar hervido y enfriar",
-      },
-      {
-        id: "9",
-        time: 180,
-        type: "yeast-addition",
-        description: "Agregar levadura",
-        amount: "1 sobre US-05",
-      },
-      {
-        id: "10",
-        time: 10080,
-        type: "dry-hop",
-        description: "Dry hop (día 7)",
-        amount: "30g Citra",
-      },
-    ],
-    createdAt: "2024-01-15",
-    status: "Activa",
-    brewingStatus: "not-started",
-    fermentationDays: 14,
-    // Datos técnicos
-    mashTemp: 65,
-    mashTime: 60,
-    spargeTemp: 78,
-    originalGravity: 1.05,
-    finalGravity: 1.01,
-    efficiency: 75,
-    waterProfile: "Balanceada",
-    yeastStrain: "Safale US-05",
-    fermentationTemp: 18,
-    notes:
-      "Cerveza refrescante ideal para el verano. Mantener temperatura de fermentación constante.",
+    value: "mashing",
+    label: "Maceración",
+    icon: "🌾",
+    description: "Pasos durante el macerado (0-90 min)",
   },
   {
-    id: "2",
-    name: "Luna IPA Imperial",
-    style: "Imperial IPA",
-    description:
-      "IPA intensa con alto contenido alcohólico y amargor pronunciado",
-    abv: 8.5,
-    ibu: 75,
-    srm: 8,
-    difficulty: "Avanzado",
-    batchSize: 20,
-    boilTime: 90,
-    steps: [
-      {
-        id: "1",
-        time: 0,
-        type: "temperature-change",
-        description: "Calentar agua a temperatura de macerado",
-        temperature: 64,
-      },
-      {
-        id: "2",
-        time: 5,
-        type: "other",
-        description: "Agregar maltas",
-        amount: "6 kg Malta Pale + 0.5 kg Crystal 60L",
-      },
-      {
-        id: "3",
-        time: 75,
-        type: "temperature-change",
-        description: "Mash out",
-        temperature: 78,
-      },
-      {
-        id: "4",
-        time: 90,
-        type: "other",
-        description: "Iniciar hervido de 90 minutos",
-      },
-      {
-        id: "5",
-        time: 120,
-        type: "hop-addition",
-        description: "Primera adición de lúpulo",
-        amount: "40g Columbus (90min)",
-      },
-      {
-        id: "6",
-        time: 165,
-        type: "hop-addition",
-        description: "Segunda adición",
-        amount: "30g Simcoe (30min)",
-      },
-      {
-        id: "7",
-        time: 175,
-        type: "hop-addition",
-        description: "Tercera adición",
-        amount: "25g Citra (15min)",
-      },
-      {
-        id: "8",
-        time: 180,
-        type: "hop-addition",
-        description: "Adición final",
-        amount: "20g Mosaic (0min)",
-      },
-      {
-        id: "9",
-        time: 180,
-        type: "other",
-        description: "Whirlpool 20 minutos",
-      },
-      {
-        id: "10",
-        time: 200,
-        type: "yeast-addition",
-        description: "Agregar levadura",
-        amount: "2 sobres US-05",
-      },
-      {
-        id: "11",
-        time: 10080,
-        type: "dry-hop",
-        description: "Primer dry hop (día 7)",
-        amount: "50g Citra + 30g Mosaic",
-      },
-      {
-        id: "12",
-        time: 17280,
-        type: "dry-hop",
-        description: "Segundo dry hop (día 12)",
-        amount: "40g Centennial",
-      },
-    ],
-    createdAt: "2024-01-10",
-    status: "Activa",
-    brewingStatus: "not-started",
-    fermentationDays: 21,
-    // Datos técnicos
-    mashTemp: 64,
-    mashTime: 75,
-    spargeTemp: 78,
-    originalGravity: 1.08,
-    finalGravity: 1.012,
-    efficiency: 78,
-    waterProfile: "Alta en sulfatos",
-    yeastStrain: "Safale US-05 (doble dosis)",
-    fermentationTemp: 19,
-    notes:
-      "IPA de alta graduación. Controlar temperatura de fermentación. Dry hop en dos etapas para máximo aroma.",
+    value: "boiling",
+    label: "Cocción/Hervido",
+    icon: "🔥",
+    description: "Pasos durante el hervido",
+  },
+  {
+    value: "fermentation",
+    label: "Fermentación",
+    icon: "🧪",
+    description: "Pasos durante la fermentación (días)",
   },
 ];
 
@@ -365,12 +223,131 @@ export default function CookingPage() {
   const params = useParams();
   const router = useRouter();
   const recipeId = params.id as string;
+  const { loading, callEndpoint } = useFetchAndLoad();
+  const { callEndpoint: callEndpointSilent } = useFetchAndLoad(); // Para operaciones que no deben mostrar loading
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(0); // tiempo actual en segundos
   const [isRunning, setIsRunning] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [currentAlert, setCurrentAlert] = useState<RecipeStep | null>(null);
+
+  // Estados para medición de gravedad y ABV
+  const [originalGravity, setOriginalGravity] = useState<number | null>(null);
+  const [finalGravity, setFinalGravity] = useState<number | null>(null);
+  const [calculatedABV, setCalculatedABV] = useState<number | null>(null);
+  const [batchNumber, setBatchNumber] = useState<string>("");
+  const [batchLiters, setBatchLiters] = useState<number | null>(null);
+  const [batchNotes, setBatchNotes] = useState<string>("");
+  const [notesLastChanged, setNotesLastChanged] = useState<number>(0);
+  const [isUpdatingFromBackend, setIsUpdatingFromBackend] =
+    useState<boolean>(false);
+
+  // Ref para mantener el valor actual de notas para el debounce
+  const currentNotesRef = useRef<string>("");
+
+  // Sincronizar el ref cuando cambie batchNotes
+  useEffect(() => {
+    currentNotesRef.current = batchNotes;
+  }, [batchNotes]);
+
+  const [sessionState, setSessionState] = useState<{
+    hasActiveSession: boolean;
+    isRunning: boolean;
+    isPaused: boolean;
+    status: string;
+    session?: any;
+  }>({
+    hasActiveSession: false,
+    isRunning: false,
+    isPaused: false,
+    status: "not-started",
+  });
+
+  // Función para calcular el tiempo transcurrido basado en fechas de la BD (solo para carga inicial)
+  const calculateElapsedTime = useCallback(
+    async (recipe: Recipe) => {
+      try {
+        // Consultar el estado actual de la sesión en el backend
+        const result = await callEndpointSilent(getBrewingStatus(recipe.id));
+        const data = result?.data;
+
+        if (data?.hasActiveSession && data.activeSession) {
+          const session = data.activeSession;
+
+          if (session.status === "brewing" && session.isRunning) {
+            // Calcular tiempo desde inicio considerando pausas
+            const startTime = new Date(session.startDate).getTime();
+            const currentTime = Date.now();
+            let totalElapsed = Math.floor((currentTime - startTime) / 1000);
+
+            // Si hay tiempo guardado en currentTime, usarlo como base
+            if (session.currentTime) {
+              totalElapsed = Math.max(totalElapsed, session.currentTime);
+            }
+
+            return totalElapsed;
+          } else if (session.currentTime) {
+            // Si está pausada, usar el tiempo guardado
+            return session.currentTime;
+          }
+        }
+
+        return 0;
+      } catch (error) {
+        console.error("Error calculando tiempo transcurrido:", error);
+        return 0;
+      }
+    },
+    [callEndpointSilent]
+  );
+
+  // Función para obtener el estado de la sesión activa
+  const getActiveSessionState = useCallback(
+    async (recipe: Recipe) => {
+      try {
+        const result = await callEndpointSilent(getBrewingStatus(recipe.id));
+        const data = result?.data;
+
+        console.log("getActiveSessionState - data completa:", data);
+
+        if (data?.hasActiveSession) {
+          // Usar currentSession que tiene los datos completos, o activeSession como fallback
+          const session = data.currentSession || data.activeSession;
+          console.log("getActiveSessionState - session encontrada:", session);
+
+          if (session) {
+            return {
+              hasActiveSession: true,
+              isRunning: session.isRunning,
+              isPaused: session.isPaused,
+              status: session.status,
+              session: session,
+            };
+          }
+        }
+
+        console.log("getActiveSessionState - no hay sesión activa");
+        return {
+          hasActiveSession: false,
+          isRunning: false,
+          isPaused: false,
+          status: "not-started",
+        };
+      } catch (error) {
+        console.error("Error getting session state:", error);
+        return {
+          hasActiveSession: false,
+          isRunning: false,
+          isPaused: false,
+          status: "not-started",
+        };
+      }
+    },
+    [callEndpointSilent]
+  );
+
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingStep, setEditingStep] = useState<RecipeStep | null>(null);
   const [newStep, setNewStep] = useState<Partial<RecipeStep>>({
@@ -380,77 +357,412 @@ export default function CookingPage() {
     amount: "",
     temperature: undefined,
   });
+  const [selectedProcessType, setSelectedProcessType] = useState<string>("");
+  const [validationError, setValidationError] = useState<string>("");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Refs para debounce de actualizaciones
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingUpdateRef = useRef<{
+    originalGravity?: number;
+    finalGravity?: number;
+    batchLiters?: number;
+  } | null>(null);
+
+  // Refs para valores que necesita el interval sin causar re-renders
+  const currentTimeRef = useRef(0);
+  const sessionStateRef = useRef(sessionState);
+  const recipeRef = useRef<Recipe | null>(null);
+  const completedStepsRef = useRef<Set<string>>(new Set());
+  const pauseTimerRef = useRef<(() => void) | null>(null);
+
+  // Actualizar refs cuando cambien los valores
   useEffect(() => {
-    // Buscar la receta por ID
-    const foundRecipe = mockRecipes.find((r) => r.id === recipeId);
-    if (foundRecipe) {
-      setRecipe(foundRecipe);
-    } else {
-      router.push("/admin/recetas");
-    }
-  }, [recipeId, router]);
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
 
   useEffect(() => {
-    // Crear elemento de audio para las alertas
-    audioRef.current = new Audio(
-      "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT"
-    );
+    sessionStateRef.current = sessionState;
+  }, [sessionState]);
+
+  useEffect(() => {
+    recipeRef.current = recipe;
+  }, [recipe]);
+
+  useEffect(() => {
+    completedStepsRef.current = completedSteps;
+  }, [completedSteps]);
+
+  // Función para calcular el tiempo automáticamente según el proceso
+  const calculateTimeByProcess = (
+    processType: string,
+    stepTime: number
+  ): number => {
+    if (!recipe) return stepTime;
+
+    switch (processType) {
+      case "mashing":
+        // Durante maceración: tiempo directo (0-90 min típicamente)
+        return stepTime;
+      case "boiling":
+        // Durante hervido: tiempo base del macerado + tiempo del hervido
+        const mashTime = recipe.mashTime || 60;
+        return mashTime + stepTime;
+      case "fermentation":
+        // Durante fermentación: convertir días a minutos (1440 min = 1 día)
+        return stepTime * 1440;
+      default:
+        return stepTime;
+    }
+  };
+
+  // Función para actualizar el tiempo cuando cambia el proceso
+  const handleProcessTypeChange = (processType: string) => {
+    setSelectedProcessType(processType);
+    setValidationError(""); // Limpiar error al cambiar tipo de proceso
+
+    // Calcular tiempo automáticamente si ya hay un tiempo base
+    if (newStep.time !== undefined && newStep.time > 0) {
+      const calculatedTime = calculateTimeByProcess(processType, newStep.time);
+      setNewStep((prev) => ({
+        ...prev,
+        time: calculatedTime,
+      }));
+    }
+  };
+
+  // Función para validar el tiempo del paso según el tipo de proceso
+  const validateStepTime = (
+    processType: string,
+    stepTime: number
+  ): { isValid: boolean; message?: string } => {
+    if (!recipe) return { isValid: true };
+
+    switch (processType) {
+      case "mashing":
+        const mashTime = recipe.mashTime || 60;
+        if (stepTime > mashTime) {
+          return {
+            isValid: false,
+            message: `El tiempo de maceración no puede ser mayor a ${mashTime} minutos (tiempo configurado de macerado)`,
+          };
+        }
+        break;
+
+      case "boiling":
+        const boilTime = recipe.boilTime || 60;
+        const totalMashTime = recipe.mashTime || 60;
+        const maxBoilTime = totalMashTime + boilTime;
+        if (stepTime > maxBoilTime) {
+          return {
+            isValid: false,
+            message: `El tiempo de hervido no puede ser mayor a ${maxBoilTime} minutos (${totalMashTime} min macerado + ${boilTime} min hervido)`,
+          };
+        }
+        if (stepTime < totalMashTime) {
+          return {
+            isValid: false,
+            message: `El tiempo de hervido debe ser mayor a ${totalMashTime} minutos (tiempo de macerado)`,
+          };
+        }
+        break;
+
+      case "fermentation":
+        const fermentationDays = recipe.fermentationDays || 14;
+        const maxFermentationMinutes = fermentationDays * 1440; // días a minutos
+        if (stepTime > maxFermentationMinutes) {
+          return {
+            isValid: false,
+            message: `El tiempo de fermentación no puede ser mayor a ${fermentationDays} días (tiempo configurado de fermentación)`,
+          };
+        }
+        break;
+    }
+
+    return { isValid: true };
+  };
+
+  // Función para generar marcadores automáticos del proceso
+  const generateAutoMarkers = useCallback((): RecipeStep[] => {
+    if (!recipe) return [];
+
+    const autoMarkers: RecipeStep[] = [];
+
+    // Marcador de inicio de cocción (al finalizar maceración)
+    if (recipe.mashTime && recipe.mashTime > 0) {
+      autoMarkers.push({
+        id: `auto-boil-start-${recipe.mashTime}`,
+        time: recipe.mashTime,
+        type: "temperature-change",
+        description: "🔥 Inicio de cocción",
+        amount: "Subir temperatura a hervido",
+        temperature: 100,
+      });
+    }
+
+    return autoMarkers;
+  }, [recipe]);
+
+  // Función para toggle del paso (completar/descompletar)
+  const toggleStep = async (stepId: string) => {
+    if (!recipe) return;
+
+    try {
+      const isCompleted = completedSteps.has(stepId);
+
+      if (isCompleted) {
+        // Descompletar paso
+        await callEndpoint(uncompleteStep(recipe.id, stepId));
+        setCompletedSteps((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(stepId);
+          return newSet;
+        });
+      } else {
+        // Completar paso
+        await callEndpoint(completeStep(recipe.id, stepId));
+        setCompletedSteps((prev) => new Set(prev).add(stepId));
+      }
+    } catch (error) {
+      console.error("Error toggling step:", error);
+    }
+  };
+
+  // Función para resetear el timer
+  const resetTimer = async () => {
+    if (!recipe) return;
+
+    try {
+      // Completar la sesión actual
+      await callEndpoint(completeBrewing(recipe.id));
+
+      // Actualizar estado local inmediatamente
+      setCurrentTime(0);
+      setIsRunning(false);
+      setCompletedSteps(new Set());
+
+      // Actualizar estado de sesión
+      const newSessionState = await getActiveSessionState(recipe);
+      setSessionState(newSessionState);
+    } catch (error) {
+      console.error("Error resetting timer:", error);
+    }
+  };
+
+  // Función para eliminar alerta actual
+  const dismissAlert = () => {
+    setCurrentAlert(null);
+  };
+
+  // Función para calcular ABV basado en las gravedades
+  const calculateABV = useCallback((og: number, fg: number): number => {
+    // Fórmula estándar: ABV = (OG - FG) * 131.25
+    return (og - fg) * 131.25;
   }, []);
 
+  // Función debounced para actualizar mediciones en el backend
+  const debouncedUpdateMeasurements = useCallback(async () => {
+    if (!recipe || !pendingUpdateRef.current) return;
+
+    try {
+      const updateData: any = {};
+      const pending = pendingUpdateRef.current;
+
+      // Solo incluir campos que están pendientes de actualización
+      if (pending.originalGravity !== undefined) {
+        updateData.originalGravity = pending.originalGravity;
+      }
+      if (pending.finalGravity !== undefined) {
+        updateData.finalGravity = pending.finalGravity;
+      }
+      if (pending.batchLiters !== undefined) {
+        updateData.batchLiters = pending.batchLiters;
+      }
+
+      // Calcular ABV si tenemos ambas gravedades
+      const og = pending.originalGravity ?? originalGravity;
+      const fg = pending.finalGravity ?? finalGravity;
+      if (og && fg) {
+        updateData.calculatedABV = calculateABV(og, fg);
+      }
+
+      console.log("Enviando update debounced:", updateData);
+
+      // Persistir en el backend solo si hay datos válidos
+      if (Object.keys(updateData).length > 0) {
+        await callEndpointSilent(
+          updateGravityMeasurements(recipe.id, updateData)
+        );
+        console.log("Update completado exitosamente");
+      }
+
+      // Limpiar pending updates DESPUÉS de la actualización exitosa
+      pendingUpdateRef.current = null;
+    } catch (error) {
+      console.error("Error updating measurements:", error);
+      // En caso de error, mantener los pending updates para reintento
+    }
+  }, [recipe, originalGravity, finalGravity, calculateABV, callEndpointSilent]);
+
+  // Función para programar una actualización con debounce
+  const scheduleUpdate = useCallback(
+    (updates: {
+      originalGravity?: number;
+      finalGravity?: number;
+      batchLiters?: number;
+    }) => {
+      // Limpiar timeout anterior si existe
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+
+      // Combinar con updates pendientes
+      pendingUpdateRef.current = {
+        ...pendingUpdateRef.current,
+        ...updates,
+      };
+
+      // Programar nueva actualización después de 500ms
+      debounceTimeoutRef.current = setTimeout(() => {
+        debouncedUpdateMeasurements();
+      }, 500);
+    },
+    [debouncedUpdateMeasurements]
+  );
+
+  // Función para actualizar gravedad original
+  const updateOriginalGravity = useCallback(
+    (og: number) => {
+      if (!recipe) return;
+
+      // Actualizar estado local inmediatamente
+      setOriginalGravity(og);
+
+      // Si ya tenemos FG, recalcular ABV
+      if (finalGravity) {
+        const abv = calculateABV(og, finalGravity);
+        setCalculatedABV(abv);
+      }
+
+      // Programar actualización en backend con debounce
+      scheduleUpdate({ originalGravity: og });
+    },
+    [recipe, finalGravity, calculateABV, scheduleUpdate]
+  );
+
+  // Función para actualizar gravedad final
+  const updateFinalGravity = useCallback(
+    (fg: number) => {
+      if (!recipe) return;
+
+      // Actualizar estado local inmediatamente
+      setFinalGravity(fg);
+
+      // Si ya tenemos OG, recalcular ABV
+      if (originalGravity) {
+        const abv = calculateABV(originalGravity, fg);
+        setCalculatedABV(abv);
+      }
+
+      // Programar actualización en backend con debounce
+      scheduleUpdate({ finalGravity: fg });
+    },
+    [recipe, originalGravity, calculateABV, scheduleUpdate]
+  );
+
+  // Función para actualizar litros del batch
+  const updateBatchLiters = useCallback(
+    (liters: number) => {
+      if (!recipe) return;
+
+      // Actualizar estado local inmediatamente
+      setBatchLiters(liters);
+
+      // Programar actualización en backend con debounce
+      scheduleUpdate({ batchLiters: liters });
+    },
+    [recipe, scheduleUpdate]
+  );
+
+  // Función simple para actualizar notas (solo actualiza el estado)
+  const updateBatchNotes = useCallback(
+    (notes: string) => {
+      setBatchNotes(notes);
+      currentNotesRef.current = notes;
+      // Solo activar debounce si no es una actualización desde el backend
+      if (!isUpdatingFromBackend) {
+        setNotesLastChanged(Date.now());
+      }
+    },
+    [isUpdatingFromBackend]
+  );
+
+  // Sincronizar el tiempo con la API cada 30 segundos cuando está corriendo
   useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = setInterval(() => {
-        setCurrentTime((prev) => {
-          const newTime = prev + 1;
+    let syncInterval: NodeJS.Timeout;
 
-          // Verificar si hay algún paso que deba alertar
-          if (recipe) {
-            const currentMinutes = Math.floor(newTime / 60);
-            const stepToAlert = recipe.steps.find(
-              (step) =>
-                step.time === currentMinutes &&
-                !completedSteps.has(step.id) &&
-                Math.floor(prev / 60) < currentMinutes &&
-                step.time < 1440 // Solo alertar pasos del día de cocción (menos de 24 horas)
+    if (isRunning && recipe?.id) {
+      syncInterval = setInterval(async () => {
+        try {
+          // Actualizar tiempo en el backend
+          await callEndpointSilent(updateBrewingTime(recipe.id, currentTime));
+
+          // Sincronizar estado de sesión ocasionalmente (solo para verificar consistencia)
+          const newSessionState = await getActiveSessionState(recipe);
+
+          // Solo actualizar si hay cambios significativos en el estado
+          if (
+            sessionState.isRunning !== newSessionState.isRunning ||
+            sessionState.isPaused !== newSessionState.isPaused ||
+            sessionState.hasActiveSession !== newSessionState.hasActiveSession
+          ) {
+            console.log(
+              "Detectado cambio de estado de sesión, actualizando..."
             );
-
-            if (stepToAlert) {
-              setCurrentAlert(stepToAlert);
-              // Reproducir sonido de alerta
-              if (audioRef.current) {
-                audioRef.current.play().catch(console.error);
-              }
-              // Mostrar notificación del navegador si está disponible
-              if (
-                "Notification" in window &&
-                Notification.permission === "granted"
-              ) {
-                new Notification(`Luna Brew House - ${recipe.name}`, {
-                  body: `Es hora de: ${stepToAlert.description}`,
-                  icon: "/images/luna-logo.png",
-                });
-              }
-            }
+            setSessionState(newSessionState);
           }
 
-          return newTime;
-        });
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+          // Si hay desincronización de tiempo, corregir
+          if (
+            newSessionState.hasActiveSession &&
+            newSessionState.session?.currentTime !== undefined
+          ) {
+            const backendTime = newSessionState.session.currentTime;
+            const timeDiff = Math.abs(currentTime - backendTime);
+
+            // Si la diferencia es mayor a 10 segundos, sincronizar
+            if (timeDiff > 10) {
+              console.log(
+                `Sincronizando tiempo: local=${currentTime}s, backend=${backendTime}s`
+              );
+              setCurrentTime(backendTime);
+            }
+          }
+        } catch (error) {
+          console.error("Error syncing time:", error);
+        }
+      }, 30000); // Cada 30 segundos
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (syncInterval) {
+        clearInterval(syncInterval);
       }
     };
-  }, [isRunning, recipe, completedSteps]);
+  }, [isRunning, recipe?.id, currentTime, sessionState]);
+
+  useEffect(() => {
+    // Crear elemento de audio para las alertas - sonido más notorio
+    audioRef.current = new Audio(
+      "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT"
+    );
+    // Configurar volumen y repetición para mejor notificación
+    if (audioRef.current) {
+      audioRef.current.volume = 0.8;
+      audioRef.current.loop = false;
+    }
+  }, []);
 
   useEffect(() => {
     // Solicitar permisos de notificación
@@ -459,12 +771,575 @@ export default function CookingPage() {
     }
   }, []);
 
-  if (!recipe) {
+  // Función para verificar si el timer debería estar pausado por cambio de temperatura
+  const checkForAutoPause = useCallback(
+    (
+      recipe: Recipe,
+      currentTimeInSeconds: number,
+      completedStepsSet: Set<string>
+    ) => {
+      const currentMinutes = Math.floor(currentTimeInSeconds / 60);
+
+      // Combinar pasos de la receta con marcadores automáticos
+      const autoMarkers = generateAutoMarkers();
+      const allSteps = [...recipe.steps, ...autoMarkers];
+
+      // Buscar el último paso que requiere pausa automática que ya debería haber ocurrido
+      const temperatureChangeSteps = allSteps
+        .filter(
+          (step) =>
+            (step.type === "temperature-change" ||
+              step.id?.startsWith("auto-boil-start") ||
+              step.temperature !== undefined) &&
+            step.time <= currentMinutes &&
+            step.time < 1440 && // Solo pasos del día de cocción
+            !completedStepsSet.has(step.id) // NO pausar si el paso ya fue completado
+        )
+        .sort((a, b) => b.time - a.time); // Ordenar de mayor a menor para obtener el más reciente
+
+      if (temperatureChangeSteps.length > 0) {
+        const lastTemperatureStep = temperatureChangeSteps[0];
+
+        // Si hay un paso de cambio de temperatura que ya debería haber ocurrido,
+        // el timer debería estar pausado en ese momento
+        const pauseTimeInSeconds = lastTemperatureStep.time * 60;
+
+        console.log(
+          "Detectado paso de temperatura que requiere pausa automática:",
+          {
+            step: lastTemperatureStep,
+            currentTime: currentTimeInSeconds,
+            shouldPauseAt: pauseTimeInSeconds,
+          }
+        );
+
+        return {
+          shouldBePaused: true,
+          pauseTime: pauseTimeInSeconds,
+          triggerStep: lastTemperatureStep,
+        };
+      }
+
+      return { shouldBePaused: false };
+    },
+    [generateAutoMarkers]
+  );
+
+  // Función para pausar el timer (declarada temprano para el useEffect)
+  const pauseTimer = useCallback(async () => {
+    if (!recipe) return;
+
+    try {
+      // Llamar a la API para pausar el brewing
+      const sessionResponse = await callEndpointSilent(pauseBrewing(recipe.id));
+
+      // Actualizar estado local inmediatamente
+      setIsRunning(false);
+
+      // Usar la respuesta del endpoint directamente
+      if (sessionResponse?.data?.session) {
+        const session = sessionResponse.data.session;
+        setSessionState({
+          hasActiveSession: true,
+          isRunning: session.isRunning,
+          isPaused: session.isPaused,
+          status: session.status,
+          session: session,
+        });
+
+        if (session.currentTime !== undefined) {
+          setCurrentTime(session.currentTime);
+        }
+      }
+    } catch (error) {
+      console.error("Error pausing timer:", error);
+    }
+  }, [recipe, callEndpointSilent, pauseBrewing]);
+
+  // Actualizar ref de pauseTimer
+  useEffect(() => {
+    pauseTimerRef.current = pauseTimer;
+  }, [pauseTimer]);
+
+  // useEffect para cargar la receta inicial
+  useEffect(() => {
+    const loadRecipe = async () => {
+      if (!recipeId) return;
+
+      try {
+        setIsInitialLoading(true);
+        const result = await callEndpoint(getRecipeById(recipeId));
+
+        if (result?.data) {
+          setRecipe(result.data);
+
+          // Cargar datos de gravedad si existen en la receta
+          if (result.data.originalGravity) {
+            setOriginalGravity(result.data.originalGravity);
+          }
+          if (result.data.finalGravity) {
+            setFinalGravity(result.data.finalGravity);
+          }
+
+          // Calcular ABV si tenemos ambas gravedades
+          if (result.data.originalGravity && result.data.finalGravity) {
+            const abv = calculateABV(
+              result.data.originalGravity,
+              result.data.finalGravity
+            );
+            setCalculatedABV(abv);
+          }
+
+          // Cargar estado de sesión si existe
+          const sessionState = await getActiveSessionState(result.data);
+          setSessionState(sessionState);
+
+          // Cargar datos de gravedad desde la sesión activa si existe
+          if (sessionState.hasActiveSession && sessionState.session) {
+            const session = sessionState.session;
+
+            console.log("Cargando datos de sesión:", session);
+            console.log("Session originalGravity:", session.originalGravity);
+            console.log("Session finalGravity:", session.finalGravity);
+            console.log("Session batchLiters:", session.batchLiters);
+
+            if (
+              session.originalGravity !== undefined &&
+              session.originalGravity !== null
+            ) {
+              console.log(
+                "Aplicando originalGravity:",
+                session.originalGravity
+              );
+              setOriginalGravity(session.originalGravity);
+            }
+            if (
+              session.finalGravity !== undefined &&
+              session.finalGravity !== null
+            ) {
+              console.log("Aplicando finalGravity:", session.finalGravity);
+              setFinalGravity(session.finalGravity);
+            }
+            if (
+              session.calculatedABV !== undefined &&
+              session.calculatedABV !== null
+            ) {
+              setCalculatedABV(session.calculatedABV);
+            } else if (session.originalGravity && session.finalGravity) {
+              // Calcular ABV si tenemos ambas gravedades pero no el ABV calculado
+              const abv = calculateABV(
+                session.originalGravity,
+                session.finalGravity
+              );
+              setCalculatedABV(abv);
+            }
+            if (
+              session.batchNumber !== undefined &&
+              session.batchNumber !== null
+            ) {
+              setBatchNumber(session.batchNumber);
+            }
+            if (
+              session.batchLiters !== undefined &&
+              session.batchLiters !== null
+            ) {
+              console.log("Aplicando batchLiters:", session.batchLiters);
+              setBatchLiters(session.batchLiters);
+            }
+            if (
+              session.batchNotes !== undefined &&
+              session.batchNotes !== null
+            ) {
+              console.log("Aplicando batchNotes:", session.batchNotes);
+              setIsUpdatingFromBackend(true);
+              setBatchNotes(session.batchNotes);
+              currentNotesRef.current = session.batchNotes;
+              setTimeout(() => setIsUpdatingFromBackend(false), 100);
+            }
+          }
+
+          // Si hay una sesión activa, cargar el tiempo actual
+          if (sessionState.hasActiveSession && sessionState.session) {
+            let elapsedTime = await calculateElapsedTime(result.data);
+
+            // Cargar pasos completados ANTES de verificar auto-pausa
+            let completedStepsSet = new Set<string>();
+            if (sessionState.session.completedSteps) {
+              const completedIds = sessionState.session.completedSteps.map(
+                (cs) => cs.stepId
+              );
+              completedStepsSet = new Set(completedIds);
+              setCompletedSteps(completedStepsSet);
+            }
+
+            // Verificar si debería haber habido una pausa automática
+            if (sessionState.isRunning) {
+              const pauseCheck = checkForAutoPause(
+                result.data,
+                elapsedTime,
+                completedStepsSet
+              );
+
+              if (
+                pauseCheck.shouldBePaused &&
+                pauseCheck.pauseTime !== undefined
+              ) {
+                // El timer debería estar pausado, ajustar el tiempo y pausar
+                console.log(
+                  "Timer debería estar pausado por cambio de temperatura, ajustando..."
+                );
+
+                // Ajustar el tiempo al momento donde debería haberse pausado
+                elapsedTime = pauseCheck.pauseTime;
+                setCurrentTime(elapsedTime);
+                setIsRunning(false);
+
+                // Mostrar la alerta del paso que causó la pausa
+                if (pauseCheck.triggerStep) {
+                  setCurrentAlert(pauseCheck.triggerStep);
+                }
+
+                // Pausar en el backend también
+                try {
+                  await callEndpointSilent(pauseBrewing(result.data.id));
+                } catch (error) {
+                  console.error("Error pausando brewing en el backend:", error);
+                }
+              } else {
+                setCurrentTime(elapsedTime);
+                setIsRunning(sessionState.isRunning);
+              }
+            } else {
+              setCurrentTime(elapsedTime);
+              setIsRunning(sessionState.isRunning);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading recipe:", error);
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+
+    loadRecipe();
+  }, [recipeId]); // Solo depender de recipeId
+
+  // useEffect para manejar el timer principal
+  useEffect(() => {
+    // Limpiar cualquier interval previo antes de crear uno nuevo
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    if (isRunning && recipe?.id) {
+      intervalRef.current = setInterval(() => {
+        // Incrementar tiempo local cada segundo sin llamar al backend
+        setCurrentTime((prevTime) => {
+          const newTime = prevTime + 1;
+
+          // Verificar si hay algún paso que deba alertar
+          const currentMinutes = Math.floor(newTime / 60);
+
+          // Usar valores de refs para evitar dependencias
+          const currentRecipe = recipeRef.current;
+          const currentCompletedSteps = completedStepsRef.current;
+
+          if (!currentRecipe) return newTime;
+
+          // Combinar pasos de la receta con marcadores automáticos
+          const autoMarkers = generateAutoMarkers();
+          const allSteps = [...currentRecipe.steps, ...autoMarkers];
+
+          const stepToAlert = allSteps.find(
+            (step) =>
+              step.time === currentMinutes &&
+              !currentCompletedSteps.has(step.id) &&
+              Math.floor(prevTime / 60) < currentMinutes &&
+              step.time < 1440 // Solo alertar pasos del día de cocción (menos de 24 horas)
+          );
+
+          if (stepToAlert) {
+            setCurrentAlert(stepToAlert);
+
+            // Pausar automáticamente si el paso requiere cambio de temperatura
+            // o si es el marcador de inicio de cocción
+            if (
+              stepToAlert.type === "temperature-change" ||
+              stepToAlert.id.startsWith("auto-boil-start") ||
+              stepToAlert.temperature !== undefined
+            ) {
+              pauseTimerRef.current?.();
+              console.log(
+                "Timer pausado automáticamente para cambio de temperatura:",
+                stepToAlert.description
+              );
+            }
+
+            // Reproducir sonido de alerta (múltiples veces para cambios críticos)
+            if (audioRef.current) {
+              const isTemperatureChange =
+                stepToAlert.type === "temperature-change" ||
+                stepToAlert.id.startsWith("auto-boil-start") ||
+                stepToAlert.temperature !== undefined;
+
+              // Para cambios de temperatura, reproducir el sonido 3 veces
+              if (isTemperatureChange) {
+                audioRef.current.play().catch(console.error);
+                setTimeout(
+                  () => audioRef.current?.play().catch(console.error),
+                  500
+                );
+                setTimeout(
+                  () => audioRef.current?.play().catch(console.error),
+                  1000
+                );
+              } else {
+                audioRef.current.play().catch(console.error);
+              }
+            }
+
+            // Mostrar notificación del navegador si está disponible
+            if (
+              "Notification" in window &&
+              Notification.permission === "granted"
+            ) {
+              new Notification(`Luna Brew House - ${currentRecipe.name}`, {
+                body: `Es hora de: ${stepToAlert.description}`,
+                icon: "/images/luna-logo.png",
+              });
+            }
+          }
+
+          return newTime;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isRunning, recipe?.id]); // Solo dependencias esenciales
+
+  // useEffect para configurar el audio de alertas
+  useEffect(() => {
+    // Crear elemento de audio para las alertas - sonido más notorio
+    audioRef.current = new Audio(
+      "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT"
+    );
+    // Configurar volumen y repetición para mejor notificación
+    if (audioRef.current) {
+      audioRef.current.volume = 0.8;
+      audioRef.current.loop = false;
+    }
+  }, []);
+
+  // useEffect para sincronización periódica con el backend
+  useEffect(() => {
+    let syncInterval: NodeJS.Timeout | null = null;
+
+    // Solo sincronizar cuando hay una sesión activa
+    if (isRunning && recipe?.id) {
+      syncInterval = setInterval(async () => {
+        try {
+          // Usar valores de los refs para evitar dependencias innecesarias
+          const currentRecipe = recipeRef.current;
+          const currentTimeValue = currentTimeRef.current;
+          const currentSessionState = sessionStateRef.current;
+
+          if (!currentRecipe) return;
+
+          // Actualizar tiempo en el backend
+          await callEndpointSilent(
+            updateBrewingTime(currentRecipe.id, currentTimeValue)
+          );
+
+          // Sincronizar estado de sesión ocasionalmente (solo para verificar consistencia)
+          const newSessionState = await getActiveSessionState(currentRecipe);
+
+          // Solo actualizar si hay cambios significativos en el estado
+          if (
+            currentSessionState.isRunning !== newSessionState.isRunning ||
+            currentSessionState.isPaused !== newSessionState.isPaused ||
+            currentSessionState.hasActiveSession !==
+              newSessionState.hasActiveSession
+          ) {
+            console.log(
+              "Detectado cambio de estado de sesión, actualizando..."
+            );
+            setSessionState(newSessionState);
+          }
+
+          // NOTA: No sincronizar tiempo automáticamente para evitar interferir con el timer local
+          // Solo sincronizar si hay una diferencia MUY grande (más de 30 segundos)
+          if (
+            newSessionState.hasActiveSession &&
+            newSessionState.session?.currentTime !== undefined
+          ) {
+            const backendTime = newSessionState.session.currentTime;
+            const timeDiff = Math.abs(currentTimeValue - backendTime);
+
+            // Solo sincronizar si hay una diferencia muy grande (posible desconexión)
+            if (timeDiff > 30) {
+              console.log(
+                `Sincronizando tiempo por gran diferencia: local=${currentTimeValue}s, backend=${backendTime}s`
+              );
+              setCurrentTime(backendTime);
+            }
+          }
+        } catch (error) {
+          console.error("Error syncing time:", error);
+        }
+      }, 30000); // Cada 30 segundos
+    }
+
+    return () => {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+      }
+    };
+  }, [isRunning, recipe?.id]); // Solo dependencias esenciales
+
+  // useEffect para sincronizar datos de gravedad cuando cambie sessionState
+  useEffect(() => {
+    if (sessionState.hasActiveSession && sessionState.session) {
+      const session = sessionState.session;
+
+      console.log("Sincronizando datos de sessionState:", session);
+
+      // Solo actualizar si los valores han cambiado para evitar loops
+      // Y solo si no hay actualizaciones pendientes (usuario no está editando)
+      if (!pendingUpdateRef.current) {
+        if (
+          session.originalGravity !== undefined &&
+          session.originalGravity !== null &&
+          session.originalGravity !== originalGravity
+        ) {
+          console.log(
+            "Actualizando originalGravity desde sessionState:",
+            session.originalGravity
+          );
+          setOriginalGravity(session.originalGravity);
+        }
+
+        if (
+          session.finalGravity !== undefined &&
+          session.finalGravity !== null &&
+          session.finalGravity !== finalGravity
+        ) {
+          console.log(
+            "Actualizando finalGravity desde sessionState:",
+            session.finalGravity
+          );
+          setFinalGravity(session.finalGravity);
+        }
+
+        if (
+          session.batchLiters !== undefined &&
+          session.batchLiters !== null &&
+          session.batchLiters !== batchLiters
+        ) {
+          console.log(
+            "Actualizando batchLiters desde sessionState:",
+            session.batchLiters
+          );
+          setBatchLiters(session.batchLiters);
+        }
+
+        if (
+          session.batchNotes !== undefined &&
+          session.batchNotes !== null &&
+          session.batchNotes !== batchNotes
+        ) {
+          console.log(
+            "Actualizando batchNotes desde sessionState:",
+            session.batchNotes
+          );
+          setIsUpdatingFromBackend(true);
+          setBatchNotes(session.batchNotes);
+          currentNotesRef.current = session.batchNotes;
+          // Resetear la bandera después de un breve delay
+          setTimeout(() => setIsUpdatingFromBackend(false), 100);
+        }
+      }
+
+      if (
+        session.calculatedABV !== undefined &&
+        session.calculatedABV !== null
+      ) {
+        setCalculatedABV(session.calculatedABV);
+      } else if (session.originalGravity && session.finalGravity) {
+        const abv = calculateABV(session.originalGravity, session.finalGravity);
+        setCalculatedABV(abv);
+      }
+
+      if (session.batchNumber !== undefined && session.batchNumber !== null) {
+        setBatchNumber(session.batchNumber);
+      }
+    }
+  }, [sessionState, calculateABV]); // Removidas las dependencias conflictivas
+
+  // useEffect para manejar debounce de notas
+  useEffect(() => {
+    if (notesLastChanged === 0 || !recipe) return;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const updateData = {
+          batchNotes: currentNotesRef.current,
+        };
+
+        await callEndpointSilent(
+          updateGravityMeasurements(recipe.id, updateData)
+        );
+      } catch (error) {
+        console.error("Error updating batch notes:", error);
+      }
+    }, 1500);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [notesLastChanged, recipe?.id]); // Removida callEndpointSilent para evitar loops
+
+  // useEffect para solicitar permisos de notificación
+  useEffect(() => {
+    // Solicitar permisos de notificación
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // useEffect para limpiar timeouts del debounce al desmontar
+  useEffect(() => {
+    return () => {
+      // Limpiar timeout de debounce si existe
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+
+      // Si hay actualizaciones pendientes, ejecutarlas inmediatamente antes de desmontar
+      if (pendingUpdateRef.current && recipe) {
+        debouncedUpdateMeasurements();
+      }
+    };
+  }, [debouncedUpdateMeasurements, recipe]);
+  if (isInitialLoading || !recipe) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">Cargando receta...</h2>
-          <p className="text-muted-foreground">Por favor espera un momento</p>
+          <h2 className="text-2xl font-bold mb-2">
+            {isInitialLoading ? "Cargando receta..." : "Receta no encontrada"}
+          </h2>
+          <p className="text-muted-foreground">
+            {isInitialLoading
+              ? "Por favor espera un momento"
+              : "La receta solicitada no existe"}
+          </p>
         </div>
       </div>
     );
@@ -489,6 +1364,12 @@ export default function CookingPage() {
 
   const getStepStatus = (step: RecipeStep) => {
     const currentMinutes = getCurrentMinutes();
+
+    // Los marcadores automáticos se marcan como completados automáticamente cuando se alcanza su tiempo
+    if (step.id.startsWith("auto-") && step.time <= currentMinutes) {
+      return "completed";
+    }
+
     if (completedSteps.has(step.id)) return "completed";
     if (step.time <= currentMinutes && step.time < 1440) return "current"; // Solo pasos del día de cocción
     return "pending";
@@ -501,44 +1382,112 @@ export default function CookingPage() {
     );
   };
 
-  const toggleStep = (stepId: string) => {
-    setCompletedSteps((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(stepId)) {
-        newSet.delete(stepId);
-      } else {
-        newSet.add(stepId);
-      }
-      return newSet;
-    });
-  };
+  const startTimer = async () => {
+    if (!recipe) return;
 
-  const startTimer = () => {
-    setIsRunning(true);
-    if (recipe && !recipe.brewingStartDate) {
-      setRecipe({
-        ...recipe,
-        brewingStatus: "brewing",
-        brewingStartDate: new Date().toISOString(),
-      });
+    try {
+      // Solo llamar a startBrewing si no hay una sesión activa
+      const currentSessionState = await getActiveSessionState(recipe);
+
+      let sessionResponse;
+      if (!currentSessionState.hasActiveSession) {
+        sessionResponse = await callEndpointSilent(startBrewing(recipe.id));
+      }
+
+      // Actualizar estado local inmediatamente
+      setIsRunning(true);
+
+      // Usar la respuesta del endpoint directamente si está disponible
+      if (sessionResponse?.data?.session) {
+        const session = sessionResponse.data.session;
+        setSessionState({
+          hasActiveSession: true,
+          isRunning: session.isRunning,
+          isPaused: session.isPaused,
+          status: session.status,
+          session: session,
+        });
+
+        if (session.currentTime !== undefined) {
+          setCurrentTime(session.currentTime);
+        }
+      } else {
+        // Solo si no tenemos respuesta directa, consultar estado
+        const newSessionState = await getActiveSessionState(recipe);
+        setSessionState(newSessionState);
+
+        if (newSessionState.session?.currentTime !== undefined) {
+          setCurrentTime(newSessionState.session.currentTime);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error starting timer:", error);
+
+      // Si ya hay una sesión activa, solo reanudar el timer local
+      if (
+        error?.response?.data?.error?.includes("sesión de elaboración activa")
+      ) {
+        console.log("Sesión ya activa, continuando con el timer local...");
+        setIsRunning(true);
+
+        // En caso de error, obtener estado actual
+        const newSessionState = await getActiveSessionState(recipe);
+        setSessionState(newSessionState);
+
+        if (newSessionState.session?.currentTime !== undefined) {
+          setCurrentTime(newSessionState.session.currentTime);
+        }
+      }
     }
   };
 
-  const pauseTimer = () => {
-    setIsRunning(false);
+  const resumeTimer = async () => {
+    if (!recipe) return;
+
+    try {
+      // Llamar a la API para reanudar el brewing
+      const sessionResponse = await callEndpointSilent(
+        resumeBrewing(recipe.id)
+      );
+
+      // Actualizar estado local inmediatamente
+      setIsRunning(true);
+
+      // Usar la respuesta del endpoint directamente
+      if (sessionResponse?.data?.session) {
+        const session = sessionResponse.data.session;
+        setSessionState({
+          hasActiveSession: true,
+          isRunning: session.isRunning,
+          isPaused: session.isPaused,
+          status: session.status,
+          session: session,
+        });
+
+        if (session.currentTime !== undefined) {
+          setCurrentTime(session.currentTime);
+        }
+      }
+    } catch (error) {
+      console.error("Error resuming timer:", error);
+    }
   };
 
-  const resetTimer = () => {
-    setIsRunning(false);
-    setCurrentTime(0);
-    setCompletedSteps(new Set());
-    setCurrentAlert(null);
-    if (recipe) {
-      setRecipe({
-        ...recipe,
-        brewingStatus: "not-started",
-        brewingStartDate: undefined,
-      });
+  const toggleTimer = async () => {
+    if (isRunning) {
+      pauseTimer();
+    } else {
+      // Verificar el estado actual para decidir entre iniciar o reanudar
+      if (sessionState.hasActiveSession && sessionState.isPaused) {
+        // Si hay una sesión pausada, reanudar
+        resumeTimer();
+      } else if (sessionState.hasActiveSession && sessionState.isRunning) {
+        // Si ya está corriendo (sincronización), solo actualizar el estado local
+        setIsRunning(true);
+      } else {
+        // Si no hay sesión activa, iniciar una nueva
+        startTimer();
+      }
     }
   };
 
@@ -552,56 +1501,95 @@ export default function CookingPage() {
     }
   };
 
-  const dismissAlert = () => {
-    setCurrentAlert(null);
-  };
-
-  const addStep = () => {
+  const addStep = async () => {
     if (newStep.description && newStep.time !== undefined && recipe) {
-      const step: RecipeStep = {
-        id: Date.now().toString(),
-        time: newStep.time || 0,
-        type: newStep.type || "other",
-        description: newStep.description,
-        amount: newStep.amount,
-        temperature: newStep.temperature,
-      };
+      // Validar tiempo según el tipo de proceso
+      if (selectedProcessType) {
+        const validation = validateStepTime(
+          selectedProcessType,
+          newStep.time || 0
+        );
+        if (!validation.isValid) {
+          setValidationError(validation.message || "Error de validación");
+          return;
+        }
+      }
 
-      setRecipe({
-        ...recipe,
-        steps: [...recipe.steps, step].sort((a, b) => a.time - b.time),
-      });
+      try {
+        const stepData = {
+          time: newStep.time || 0,
+          type: newStep.type || "other",
+          description: newStep.description,
+          amount: newStep.amount,
+          temperature: newStep.temperature,
+        };
 
-      setNewStep({
-        time: 0,
-        type: "other",
-        description: "",
-        amount: "",
-        temperature: undefined,
-      });
-      setIsEditDialogOpen(false);
+        await callEndpointSilent(addRecipeStep(recipe.id, stepData));
+
+        // Recargar receta para obtener el paso actualizado
+        const result = await callEndpointSilent(getRecipeById(recipe.id));
+        if (result?.data) {
+          setRecipe(result.data);
+        }
+
+        setNewStep({
+          time: 0,
+          type: "other",
+          description: "",
+          amount: "",
+          temperature: undefined,
+        });
+        setSelectedProcessType("");
+        setValidationError("");
+        setIsEditDialogOpen(false);
+      } catch (error) {
+        console.error("Error adding step:", error);
+      }
     }
   };
 
-  const updateStep = () => {
+  const updateStep = async () => {
     if (editingStep && recipe) {
-      setRecipe({
-        ...recipe,
-        steps: recipe.steps.map((step) =>
-          step.id === editingStep.id ? editingStep : step
-        ),
-      });
-      setEditingStep(null);
-      setIsEditDialogOpen(false);
+      try {
+        const stepData = {
+          time: editingStep.time,
+          type: editingStep.type,
+          description: editingStep.description,
+          amount: editingStep.amount,
+          temperature: editingStep.temperature,
+        };
+
+        await callEndpointSilent(
+          updateRecipeStep(recipe.id, editingStep.id, stepData)
+        );
+
+        // Recargar receta para obtener el paso actualizado
+        const result = await callEndpointSilent(getRecipeById(recipe.id));
+        if (result?.data) {
+          setRecipe(result.data);
+        }
+
+        setEditingStep(null);
+        setIsEditDialogOpen(false);
+      } catch (error) {
+        console.error("Error updating step:", error);
+      }
     }
   };
 
-  const removeStep = (stepId: string) => {
+  const removeStep = async (stepId: string) => {
     if (recipe) {
-      setRecipe({
-        ...recipe,
-        steps: recipe.steps.filter((step) => step.id !== stepId),
-      });
+      try {
+        await callEndpointSilent(deleteRecipeStep(recipe.id, stepId));
+
+        // Recargar receta para obtener los cambios
+        const result = await callEndpointSilent(getRecipeById(recipe.id));
+        if (result?.data) {
+          setRecipe(result.data);
+        }
+      } catch (error) {
+        console.error("Error removing step:", error);
+      }
     }
   };
 
@@ -631,10 +1619,17 @@ export default function CookingPage() {
   );
 
   // Timeline horizontal para pasos de cocción
-  const maxBrewingTime = Math.max(
-    ...sortedBrewingSteps.map((step) => step.time),
-    180
-  ); // Mínimo 3 horas
+
+  // Calcular el tiempo máximo de los pasos (manejar array vacío)
+  const maxStepTime =
+    sortedBrewingSteps.length > 0
+      ? Math.max(...sortedBrewingSteps.map((step) => step.time))
+      : 0;
+
+  const calculatedTime = (recipe.mashTime || 60) + (recipe.boilTime || 60);
+
+  const maxBrewingTime = Math.max(maxStepTime, calculatedTime);
+
   const currentTimeProgress = (getCurrentMinutes() / maxBrewingTime) * 100;
 
   // Función para agrupar pasos que están muy cerca (menos de 10 minutos)
@@ -650,7 +1645,7 @@ export default function CookingPage() {
       const timeToCheck = isBrewingSteps
         ? step.time
         : Math.floor(step.time / 1440); // Para fermentación usar días
-      const threshold = isBrewingSteps ? 10 : 1; // 10 minutos para cocción, 1 día para fermentación
+      const threshold = isBrewingSteps ? 15 : 1; // 10 minutos para cocción, 1 día para fermentación
 
       // Buscar si hay un grupo existente dentro del threshold
       const existingGroup = groups.find(
@@ -698,11 +1693,9 @@ export default function CookingPage() {
   };
 
   // Agrupar pasos para el timeline
-  const groupedBrewingSteps = groupSteps(
-    sortedBrewingSteps,
-    maxBrewingTime,
-    true
-  );
+  const autoMarkers = generateAutoMarkers();
+  const allBrewingSteps = [...sortedBrewingSteps, ...autoMarkers];
+  const groupedBrewingSteps = groupSteps(allBrewingSteps, maxBrewingTime, true);
   const groupedFermentationSteps = groupSteps(
     sortedFermentationSteps,
     recipe.fermentationDays || 14,
@@ -712,7 +1705,7 @@ export default function CookingPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b">
+      <div className="bg-white border-b rounded-t-lg">
         <div className="container py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -752,21 +1745,61 @@ export default function CookingPage() {
                     amount: "",
                     temperature: undefined,
                   });
+                  setSelectedProcessType("");
+                  setValidationError("");
                   setIsEditDialogOpen(true);
                 }}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Agregar Paso
               </Button>
-              <div className="text-right">
-                <div className="text-2xl font-mono font-bold">
-                  {formatTime(currentTime)}
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="text-2xl font-mono font-bold">
+                    {formatTime(currentTime)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {recipe.brewingStatus === "fermenting"
+                      ? "Fermentando"
+                      : "Tiempo transcurrido"}
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {recipe.brewingStatus === "fermenting"
-                    ? "Fermentando"
-                    : "Tiempo transcurrido"}
-                </div>
+
+                {/* Controles del Timer */}
+                {recipe.brewingStatus !== "fermenting" && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={toggleTimer}
+                      className={
+                        isRunning
+                          ? "bg-red-500 hover:bg-red-600"
+                          : "bg-green-500 hover:bg-green-600"
+                      }
+                    >
+                      {isRunning ? (
+                        <>
+                          <Pause className="mr-2 h-4 w-4" />
+                          Pausar
+                        </>
+                      ) : (
+                        <>
+                          <Play className="mr-2 h-4 w-4" />
+                          {sessionState.hasActiveSession &&
+                          sessionState.isPaused
+                            ? "Continuar"
+                            : "Iniciar"}
+                        </>
+                      )}
+                    </Button>
+                    {recipe.currentSession && (
+                      <Button size="sm" variant="outline" onClick={resetTimer}>
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Reiniciar
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -774,7 +1807,7 @@ export default function CookingPage() {
       </div>
 
       {/* Timeline Horizontal */}
-      <div className="bg-white border-b">
+      <div className="bg-white border-b rounded-b-lg">
         <div className="container py-8">
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -812,8 +1845,8 @@ export default function CookingPage() {
                     const typeInfo = getStepTypeInfo(primaryStep.type);
 
                     // Determinar el estado del grupo
-                    const groupStatus = group.steps.every((step) =>
-                      completedSteps.has(step.id)
+                    const groupStatus = group.steps.every(
+                      (step) => getStepStatus(step) === "completed"
                     )
                       ? "completed"
                       : group.steps.some(
@@ -930,44 +1963,53 @@ export default function CookingPage() {
                                       )}
                                     </div>
                                     <div className="flex gap-2">
-                                      {stepStatus !== "pending" && (
-                                        <Button
-                                          size="sm"
-                                          variant={
-                                            stepStatus === "completed"
-                                              ? "default"
-                                              : "outline"
-                                          }
-                                          onClick={() => toggleStep(step.id)}
-                                          className="flex-1"
-                                        >
-                                          {stepStatus === "completed" ? (
-                                            <>
-                                              <CheckCircle className="mr-2 h-3 w-3" />
-                                              Completado
-                                            </>
-                                          ) : (
-                                            "Marcar completado"
-                                          )}
-                                        </Button>
+                                      {stepStatus !== "pending" &&
+                                        !step.id.startsWith("auto-") && (
+                                          <Button
+                                            size="sm"
+                                            variant={
+                                              stepStatus === "completed"
+                                                ? "default"
+                                                : "outline"
+                                            }
+                                            onClick={() => toggleStep(step.id)}
+                                            className="flex-1"
+                                          >
+                                            {stepStatus === "completed" ? (
+                                              <>
+                                                <CheckCircle className="mr-2 h-3 w-3" />
+                                                Completado
+                                              </>
+                                            ) : (
+                                              "Marcar completado"
+                                            )}
+                                          </Button>
+                                        )}
+                                      {step.id.startsWith("auto-") ? (
+                                        <div className="flex-1 text-center text-xs text-muted-foreground py-2">
+                                          Marcador automático
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                              setEditingStep(step);
+                                              setIsEditDialogOpen(true);
+                                            }}
+                                          >
+                                            <Edit className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => removeStep(step.id)}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </>
                                       )}
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                          setEditingStep(step);
-                                          setIsEditDialogOpen(true);
-                                        }}
-                                      >
-                                        <Edit className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => removeStep(step.id)}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
                                     </div>
                                   </div>
                                 );
@@ -982,11 +2024,11 @@ export default function CookingPage() {
               </div>
             ) : (
               // Timeline de fermentación
-              <div className="relative px-8">
+              <div className="relative px-8 pb-16">
                 {/* Barra de progreso de fermentación */}
                 <div className="w-full h-3 bg-gray-200 rounded-full">
                   <div
-                    className="h-3 bg-purple-500 rounded-full transition-all duration-1000"
+                    className="h-3 bg-green-600 rounded-full transition-all duration-1000"
                     style={{ width: `${getFermentationProgress()}%` }}
                   />
                 </div>
@@ -1208,21 +2250,29 @@ export default function CookingPage() {
                 {recipe.brewingStatus !== "fermenting" ? (
                   <>
                     <div className="flex gap-2">
-                      {!isRunning ? (
-                        <Button onClick={startTimer} className="flex-1">
-                          <Play className="mr-2 h-4 w-4" />
-                          {currentTime === 0 ? "Empezar" : "Continuar"}
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={pauseTimer}
-                          variant="outline"
-                          className="flex-1 bg-transparent"
-                        >
-                          <Pause className="mr-2 h-4 w-4" />
-                          Pausar
-                        </Button>
-                      )}
+                      <Button
+                        onClick={toggleTimer}
+                        className={
+                          isRunning
+                            ? "flex-1 bg-red-500 hover:bg-red-600"
+                            : "flex-1 bg-green-500 hover:bg-green-600"
+                        }
+                      >
+                        {isRunning ? (
+                          <>
+                            <Pause className="mr-2 h-4 w-4" />
+                            Pausar
+                          </>
+                        ) : (
+                          <>
+                            <Play className="mr-2 h-4 w-4" />
+                            {sessionState.hasActiveSession &&
+                            sessionState.isPaused
+                              ? "Continuar"
+                              : "Empezar"}
+                          </>
+                        )}
+                      </Button>
                       <Button onClick={resetTimer} variant="outline">
                         <RotateCcw className="h-4 w-4" />
                       </Button>
@@ -1322,9 +2372,14 @@ export default function CookingPage() {
                 <div className="grid grid-cols-3 gap-4 pt-4 border-t">
                   <div className="text-center">
                     <div className="text-lg font-bold text-blue-600">
-                      {recipe.abv}%
+                      {calculatedABV !== null
+                        ? calculatedABV.toFixed(2)
+                        : recipe.abv}
+                      %
                     </div>
-                    <div className="text-xs text-muted-foreground">ABV</div>
+                    <div className="text-xs text-muted-foreground">
+                      ABV {calculatedABV !== null ? "(Medido)" : "(Teórico)"}
+                    </div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-orange-600">
@@ -1338,6 +2393,127 @@ export default function CookingPage() {
                     </div>
                     <div className="text-xs text-muted-foreground">SRM</div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Panel de Medición de Gravedad */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Droplets className="h-5 w-5" />
+                  Medición de Gravedad
+                </CardTitle>
+                <CardDescription>
+                  Registra las mediciones y calcula el ABV automáticamente
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Gravedad Original */}
+                <div className="space-y-2">
+                  <Label htmlFor="original-gravity">
+                    Gravedad Original (OG)
+                  </Label>
+                  <Input
+                    id="original-gravity"
+                    type="number"
+                    step="0.001"
+                    min="1.000"
+                    max="1.200"
+                    placeholder="ej. 1.050"
+                    value={originalGravity || ""}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 1.0 && value <= 1.2) {
+                        updateOriginalGravity(value);
+                      } else if (e.target.value === "") {
+                        setOriginalGravity(null);
+                        setCalculatedABV(null);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Gravedad Final */}
+                <div className="space-y-2">
+                  <Label htmlFor="final-gravity">Gravedad Final (FG)</Label>
+                  <Input
+                    id="final-gravity"
+                    type="number"
+                    step="0.001"
+                    min="0.990"
+                    max="1.100"
+                    placeholder="ej. 1.012"
+                    value={finalGravity || ""}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 0.99 && value <= 1.1) {
+                        updateFinalGravity(value);
+                      } else if (e.target.value === "") {
+                        setFinalGravity(null);
+                        setCalculatedABV(null);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* ABV Calculado */}
+                {calculatedABV !== null && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FlaskConical className="h-4 w-4 text-green-600" />
+                        <span className="font-medium text-green-800">
+                          ABV Calculado
+                        </span>
+                      </div>
+                      <span className="text-2xl font-bold text-green-600">
+                        {calculatedABV.toFixed(2)}%
+                      </span>
+                    </div>
+                    <p className="text-sm text-green-600 mt-1">
+                      Basado en OG: {originalGravity?.toFixed(3)} y FG:{" "}
+                      {finalGravity?.toFixed(3)}
+                    </p>
+                  </div>
+                )}
+
+                {/* Litros del Batch */}
+                <div className="space-y-2">
+                  <Label htmlFor="batch-liters">Litros del Batch</Label>
+                  <Input
+                    id="batch-liters"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="1000"
+                    placeholder="ej. 20.5"
+                    value={batchLiters || ""}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value > 0) {
+                        updateBatchLiters(value);
+                      } else if (e.target.value === "") {
+                        setBatchLiters(null);
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Volumen final del batch después del proceso de elaboración
+                  </p>
+                </div>
+
+                {/* Información de ayuda */}
+                <div className="text-xs text-muted-foreground border-t pt-3">
+                  <p>
+                    <strong>OG:</strong> Medir antes de añadir levadura
+                  </p>
+                  <p>
+                    <strong>FG:</strong> Medir al final de la fermentación
+                  </p>
+                  <p>
+                    <strong>Fórmula:</strong> ABV = (OG - FG) × 131.25
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -1380,22 +2556,16 @@ export default function CookingPage() {
                           {recipe.mashTime} min
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Sparge:
-                        </span>
-                        <span className="text-sm font-medium">
-                          {recipe.spargeTemp}°C
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Eficiencia:
-                        </span>
-                        <span className="text-sm font-medium">
-                          {recipe.efficiency}%
-                        </span>
-                      </div>
+                      {(recipe as any).grainBill && (
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            Granos:
+                          </span>
+                          <span className="text-sm font-medium">
+                            {(recipe as any).grainBill}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1437,7 +2607,14 @@ export default function CookingPage() {
                           Perfil de agua:
                         </span>
                         <span className="text-sm font-medium">
-                          {recipe.waterProfile}
+                          {recipe.waterProfile &&
+                          typeof recipe.waterProfile === "object"
+                            ? `Ca: ${
+                                (recipe.waterProfile as any).calcium
+                              }ppm, Mg: ${
+                                (recipe.waterProfile as any).magnesium
+                              }ppm`
+                            : recipe.waterProfile || "No definido"}
                         </span>
                       </div>
                     </div>
@@ -1447,23 +2624,25 @@ export default function CookingPage() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Droplets className="h-5 w-5 text-blue-600" />
-                      <h3 className="font-semibold text-blue-800">Gravedad</h3>
+                      <h3 className="font-semibold text-blue-800">
+                        Gravedad Objetivo
+                      </h3>
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">
-                          OG:
+                          OG Objetivo:
                         </span>
                         <span className="text-sm font-medium">
-                          {recipe.originalGravity}
+                          {recipe.targetOriginalGravity}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">
-                          FG:
+                          FG Objetivo:
                         </span>
                         <span className="text-sm font-medium">
-                          {recipe.finalGravity}
+                          {recipe.targetFinalGravity}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -1479,11 +2658,12 @@ export default function CookingPage() {
                           Atenuación:
                         </span>
                         <span className="text-sm font-medium">
-                          {recipe.originalGravity && recipe.finalGravity
+                          {recipe.targetOriginalGravity &&
+                          recipe.targetFinalGravity
                             ? Math.round(
-                                ((recipe.originalGravity -
-                                  recipe.finalGravity) /
-                                  (recipe.originalGravity - 1)) *
+                                ((recipe.targetOriginalGravity -
+                                  recipe.targetFinalGravity) /
+                                  (recipe.targetOriginalGravity - 1)) *
                                   100
                               )
                             : 0}
@@ -1579,6 +2759,35 @@ export default function CookingPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Notas del Batch */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="text-lg">📝</span>
+                  Notas del Batch
+                </CardTitle>
+                <CardDescription>
+                  Registra observaciones específicas de este batch
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label htmlFor="batch-notes">Notas y Observaciones</Label>
+                  <Textarea
+                    id="batch-notes"
+                    placeholder="Añade notas específicas sobre este batch: observaciones, cambios realizados, problemas encontrados, etc."
+                    value={batchNotes}
+                    onChange={(e) => updateBatchNotes(e.target.value)}
+                    rows={6}
+                    className="resize-vertical"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Estas notas se guardan automáticamente
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
@@ -1597,22 +2806,103 @@ export default function CookingPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Selector de tipo de proceso - solo para nuevos pasos */}
+            {!editingStep && (
+              <div className="space-y-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <Label htmlFor="processType">Tipo de Proceso</Label>
+                <Select
+                  value={selectedProcessType}
+                  onValueChange={handleProcessTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona el tipo de proceso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {processTypes.map((process) => (
+                      <SelectItem key={process.value} value={process.value}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{process.icon}</span>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{process.label}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {process.description}
+                            </span>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedProcessType && (
+                  <div className="text-xs text-blue-600 mt-2">
+                    {selectedProcessType === "mashing" &&
+                      "💡 El tiempo se cuenta desde el inicio del macerado (0-90 min típicamente)"}
+                    {selectedProcessType === "boiling" &&
+                      `💡 El tiempo se cuenta desde el inicio del hervor`}
+                    {selectedProcessType === "fermentation" &&
+                      "💡 Ingresa el número de días y se convertirá automáticamente"}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="stepTime">Tiempo (min)</Label>
+                <Label htmlFor="stepTime">
+                  {selectedProcessType === "fermentation"
+                    ? "Tiempo (días)"
+                    : selectedProcessType === "boiling"
+                    ? "Tiempo desde hervor (min)"
+                    : "Tiempo (min)"}
+                </Label>
                 <Input
                   id="stepTime"
                   type="number"
-                  value={editingStep?.time || newStep.time}
+                  value={
+                    selectedProcessType === "fermentation" && newStep.time
+                      ? Math.floor(newStep.time / 1440) || ""
+                      : selectedProcessType === "boiling" &&
+                        newStep.time &&
+                        recipe?.mashTime
+                      ? newStep.time - (recipe.mashTime || 60) || ""
+                      : editingStep?.time || newStep.time
+                  }
                   onChange={(e) => {
-                    const value = Number.parseInt(e.target.value);
+                    let value = Number.parseInt(e.target.value) || 0;
+
+                    // Limpiar error de validación al cambiar el valor
+                    setValidationError("");
+
+                    // Calcular el tiempo real según el tipo de proceso
+                    if (selectedProcessType) {
+                      value = calculateTimeByProcess(
+                        selectedProcessType,
+                        value
+                      );
+                    }
+
                     if (editingStep) {
                       setEditingStep({ ...editingStep, time: value });
                     } else {
                       setNewStep({ ...newStep, time: value });
                     }
                   }}
+                  placeholder={
+                    selectedProcessType === "fermentation"
+                      ? "Ej: 7 (días)"
+                      : selectedProcessType === "boiling"
+                      ? "Ej: 60 (min desde hervor)"
+                      : "Ej: 15 (minutos)"
+                  }
                 />
+                {selectedProcessType === "boiling" &&
+                  newStep.time != 0 &&
+                  newStep.time &&
+                  recipe?.mashTime && (
+                    <div className="text-xs text-muted-foreground">
+                      Tiempo desde inicio de hervor
+                    </div>
+                  )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="stepType">Tipo</Label>
@@ -1701,6 +2991,19 @@ export default function CookingPage() {
                 />
               </div>
             </div>
+
+            {/* Mensaje de error de validación */}
+            {validationError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 text-red-800">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    Error de validación
+                  </span>
+                </div>
+                <p className="text-sm text-red-700 mt-1">{validationError}</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -1715,6 +3018,8 @@ export default function CookingPage() {
                   amount: "",
                   temperature: undefined,
                 });
+                setSelectedProcessType("");
+                setValidationError("");
               }}
             >
               Cancelar
@@ -1756,6 +3061,25 @@ export default function CookingPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Mensaje de pausa automática */}
+                {(currentAlert.type === "temperature-change" ||
+                  currentAlert.id?.startsWith("auto-boil-start") ||
+                  currentAlert.temperature !== undefined) && (
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-orange-800">
+                      <Pause className="h-4 w-4" />
+                      <span className="text-sm font-medium">
+                        Timer pausado automáticamente
+                      </span>
+                    </div>
+                    <p className="text-sm text-orange-700 mt-1">
+                      Este paso requiere cambio de temperatura. Presiona
+                      "Entendido" y luego "Reanudar" cuando estés listo.
+                    </p>
+                  </div>
+                )}
+
                 <Button onClick={dismissAlert} className="w-full">
                   Entendido
                 </Button>

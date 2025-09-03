@@ -29,7 +29,7 @@ export default function Loading() {
               <div className="w-48 h-6 bg-gray-200 rounded animate-pulse" />
               <div className="w-32 h-4 bg-gray-200 rounded animate-pulse" />
             </div>
-            <div className="relative px-8">
+            <div className="relative px-8 pb-16">
               <div className="w-full h-3 bg-gray-200 rounded-full animate-pulse" />
               <div className="relative mt-6">
                 {[...Array(5)].map((_, i) => (
