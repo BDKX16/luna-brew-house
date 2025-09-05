@@ -25,6 +25,7 @@ app.use("/api", require("./routes/users.js"));
 app.use("/api", require("./routes/products.js"));
 app.use("/api", require("./routes/payments.js"));
 app.use("/api", require("./routes/subscriptions.js"));
+app.use("/api/landing", require("./routes/landing-config.js"));
 app.use("/api/admin", require("./routes/recipes.js"));
 app.use("/api/admin", require("./routes/admin-payments.js"));
 app.use("/api/admin", require("./routes/admin-products.js"));

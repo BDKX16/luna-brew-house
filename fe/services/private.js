@@ -1492,3 +1492,145 @@ export const deleteCustomStepFromSession = (sessionId, stepId) => {
     controller,
   };
 };
+
+/**********
+ * GESTIÓN DE USUARIOS
+ ************/
+
+// Obtener todos los usuarios (solo admins)
+export const getAllUsers = () => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .get(`${baseUrl}/admin/users`, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error fetching users:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Obtener pedidos de un usuario específico
+export const getUserOrders = (userId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .get(`${baseUrl}/admin/users/${userId}/orders`, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error fetching user orders:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Actualizar estado de un usuario
+export const updateUserStatus = (userId, statusData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .put(`${baseUrl}/admin/users/${userId}/status`, statusData, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error updating user status:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Eliminar usuario
+export const deleteUser = (userId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .delete(`${baseUrl}/admin/users/${userId}`, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error deleting user:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Actualizar perfil del usuario actual
+export const updateUserProfile = (profileData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .put(`${baseUrl}/users/profile`, profileData, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error updating user profile:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Obtener pedidos del usuario actual
+export const getMyOrders = () => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .get(`${baseUrl}/users/orders`, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error fetching my orders:", error);
+        throw error;
+      }),
+    controller,
+  };
+};

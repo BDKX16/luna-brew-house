@@ -15,8 +15,10 @@ export default function SubscriptionsPage() {
     const fetchSubscriptions = async () => {
       try {
         const response = await callEndpoint(getSubscriptionPlans());
-        if (response && response.data) {
-          setSubscriptions(response.data);
+        console.log(response);
+        if (response && response.data?.subscriptions) {
+          setSubscriptions(response.data.subscriptions);
+          setError(null);
         } else {
           setError("No se pudieron cargar los planes de suscripción");
         }
@@ -53,7 +55,7 @@ export default function SubscriptionsPage() {
         Recibe cervezas artesanales seleccionadas directamente en tu puerta cada
         mes
       </p>
-      <SubscriptionGrid subscriptions={subscriptions} />
+      <SubscriptionGrid plans={subscriptions} loading={loading} />
     </div>
   );
 }

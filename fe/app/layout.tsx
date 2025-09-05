@@ -4,15 +4,19 @@ import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ReduxProvider } from "@/redux/ReduxProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import MaintenanceChecker from "@/components/MaintenanceChecker";
+import {
+  getSEOConfig,
+  generateMetadata as generateSEOMetadata,
+} from "@/lib/seo";
+import type { Metadata } from "next";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata = {
-  title: "Luna Brew House - Cerveza Artesanal",
-  description:
-    "Cerveza artesanal con el alma de Luna. Elaborada con pasión en Mar del Plata por una familia con raíces vascas.",
-  generator: "v0.dev",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const seoConfig = await getSEOConfig();
+  return generateSEOMetadata(seoConfig);
+}
 
 export default function RootLayout({
   children,
@@ -30,7 +34,7 @@ export default function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
-              {children}
+              <MaintenanceChecker>{children}</MaintenanceChecker>
             </ThemeProvider>
           </AuthProvider>
         </ReduxProvider>

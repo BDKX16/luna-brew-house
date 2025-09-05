@@ -1,33 +1,42 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const useFetchAndLoad = () => {
   const [loading, setLoading] = useState(false);
-  let controller;
+  const controllerRef = useRef();
 
-  const callEndpoint = async (axiosCall) => {
+  const callEndpoint = useCallback(async (axiosCall) => {
     if (!axiosCall) return;
-    if (axiosCall.controller) controller = axiosCall.controller;
+
+    if (axiosCall.controller) {
+      controllerRef.current = axiosCall.controller;
+    }
+
     setLoading(true);
     let result = {};
     try {
       result = await axiosCall.call;
     } catch (error) {
-      //console.error(error);
+      // Solo loggear errores que no sean de cancelación
+      if (error.name !== "CanceledError" && error.name !== "AbortError") {
+        console.error("Fetch error:", error);
+      }
     }
     setLoading(false);
     return result;
-  };
+  }, []);
 
-  const cancelEndpoint = () => {
+  const cancelEndpoint = useCallback(() => {
     setLoading(false);
-    controller && controller.abort();
-  };
+    if (controllerRef.current) {
+      controllerRef.current.abort();
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
       cancelEndpoint();
     };
-  }, []);
+  }, [cancelEndpoint]);
 
   return { loading, callEndpoint };
 };
