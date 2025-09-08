@@ -922,13 +922,15 @@ router.post("/payments/webhook", async (req, res) => {
     if (paymentUpdateResult) {
       // Registro actualizado
     } else {
-      console.warn("⚠️ No se encontró registro de pago para orden:", finalOrderId);
+      console.warn(
+        "⚠️ No se encontró registro de pago para orden:",
+        finalOrderId
+      );
     }
 
     // Actualizar estado de orden - buscar por ObjectId de MongoDB
     const order = await Order.findById(finalOrderId);
     if (order) {
-
       if (
         paymentInfo.status === "approved" ||
         paymentInfo.status === "authorized"
@@ -1000,7 +1002,9 @@ router.post("/payments/subscription-webhook", async (req, res) => {
 
     // Validar que tenemos el ID del pago
     if (!paymentId) {
-      console.error("❌ No se encontró data.id en los query params para suscripción");
+      console.error(
+        "❌ No se encontró data.id en los query params para suscripción"
+      );
       return res.status(400).send();
     }
 

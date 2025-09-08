@@ -460,7 +460,22 @@ export default function CheckoutPage() {
   const calculateTotal = () => {
     const subtotal = calculateSubtotal();
     const discountAmount = calculateDiscountAmount();
-    return subtotal - discountAmount;
+    const shippingCost = calculateShippingCost();
+    return subtotal - discountAmount + shippingCost;
+  };
+
+  // Función para calcular la cantidad total de cervezas
+  const getTotalBeerQuantity = () => {
+    return cart
+      .filter((item) => item.type === "beer")
+      .reduce((total, item) => total + item.quantity, 0);
+  };
+
+  // Función para calcular el costo de envío
+  const calculateShippingCost = () => {
+    const totalBeers = getTotalBeerQuantity();
+    // Envío gratis a partir de 3 cervezas
+    return totalBeers >= 3 ? 0 : 1500; // $1500 pesos de envío si es menos de 3 cervezas
   };
 
   const hasSubscription = cart.some((item) => item.type === "subscription");
@@ -694,11 +709,39 @@ export default function CheckoutPage() {
           </div>
 
           <div className="mb-6">
-            <Alert className="bg-amber-50 border-amber-200">
-              <Truck className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800">
-                <span className="font-bold">¡Envío GRATIS!</span> Acercamos la
-                cerveza a tu casa sin cargo adicional en Mar del Plata.
+            <Alert
+              className={`${
+                getTotalBeerQuantity() >= 3
+                  ? "bg-green-50 border-green-200"
+                  : "bg-amber-50 border-amber-200"
+              }`}
+            >
+              <Truck
+                className={`h-4 w-4 ${
+                  getTotalBeerQuantity() >= 3
+                    ? "text-green-600"
+                    : "text-amber-600"
+                }`}
+              />
+              <AlertDescription
+                className={
+                  getTotalBeerQuantity() >= 3
+                    ? "text-green-800"
+                    : "text-amber-800"
+                }
+              >
+                {getTotalBeerQuantity() >= 3 ? (
+                  <span>
+                    <span className="font-bold">¡Envío GRATIS!</span> Tienes{" "}
+                    {getTotalBeerQuantity()} cervezas en tu carrito.
+                  </span>
+                ) : (
+                  <span>
+                    <span className="font-bold">Envío gratis</span> a partir de
+                    3 cervezas. Tienes {getTotalBeerQuantity()}/3 cervezas en tu
+                    carrito.
+                  </span>
+                )}
               </AlertDescription>
             </Alert>
           </div>
@@ -1306,6 +1349,21 @@ export default function CheckoutPage() {
                               <span>${calculateSubtotal()}</span>
                             </div>
 
+                            <div className="flex justify-between">
+                              <span>Envío</span>
+                              <span
+                                className={
+                                  calculateShippingCost() === 0
+                                    ? "text-green-600 font-medium"
+                                    : ""
+                                }
+                              >
+                                {calculateShippingCost() === 0
+                                  ? "GRATIS"
+                                  : `$${calculateShippingCost()}`}
+                              </span>
+                            </div>
+
                             {hasSubscription && (
                               <div className="flex justify-between text-green-600 font-medium">
                                 <span>Ahorro por suscripción</span>
@@ -1448,6 +1506,21 @@ export default function CheckoutPage() {
                           <span>${calculateSubtotal()}</span>
                         </div>
 
+                        <div className="flex justify-between">
+                          <span>Envío</span>
+                          <span
+                            className={
+                              calculateShippingCost() === 0
+                                ? "text-green-600 font-medium"
+                                : ""
+                            }
+                          >
+                            {calculateShippingCost() === 0
+                              ? "GRATIS"
+                              : `$${calculateShippingCost()}`}
+                          </span>
+                        </div>
+
                         {hasSubscription && (
                           <div className="flex justify-between text-green-600 font-medium">
                             <span>Ahorro por suscripción</span>
@@ -1583,6 +1656,21 @@ export default function CheckoutPage() {
                         <div className="flex justify-between">
                           <span>Subtotal</span>
                           <span>${calculateSubtotal()}</span>
+                        </div>
+
+                        <div className="flex justify-between">
+                          <span>Envío</span>
+                          <span
+                            className={
+                              calculateShippingCost() === 0
+                                ? "text-green-600 font-medium"
+                                : ""
+                            }
+                          >
+                            {calculateShippingCost() === 0
+                              ? "GRATIS"
+                              : `$${calculateShippingCost()}`}
+                          </span>
                         </div>
 
                         {hasSubscription && (
