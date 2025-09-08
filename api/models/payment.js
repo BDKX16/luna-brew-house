@@ -5,6 +5,11 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  orderId: {
+    type: String,
+    required: true,
+    unique: true,
+  },
   amount: {
     type: Number,
     required: true,
@@ -16,18 +21,44 @@ const paymentSchema = new mongoose.Schema({
   currency: {
     type: String,
     required: true,
+    default: "ARS",
   },
   paymentMethod: {
     type: String,
     required: true,
+    enum: ["mercadopago", "paypal", "transfer", "cash"],
   },
   paymentId: {
     type: String,
     required: false,
   },
-  videoId: {
+  preferenceId: {
     type: String,
-    required: true,
+    required: false,
+  },
+  // Información del producto/servicio
+  items: [
+    {
+      id: String,
+      name: String,
+      type: {
+        type: String,
+        enum: ["beer", "subscription"],
+        required: true,
+      },
+      quantity: Number,
+      price: Number,
+    },
+  ],
+  // Información de descuento
+  discountCode: {
+    type: String,
+    required: false,
+  },
+  discountAmount: {
+    type: Number,
+    required: false,
+    default: 0,
   },
   date: {
     type: Date,
@@ -59,19 +90,21 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
-  userData: {
+  // Información del cliente
+  customerInfo: {
+    firstName: String,
+    lastName: String,
+    email: String,
+    phone: String,
+    address: String,
+    city: String,
+    postalCode: String,
+  },
+  // Metadatos adicionales
+  metadata: {
     type: Object,
     required: false,
   },
-  firstName: { type: String, required: false },
-  lastName: { type: String, required: false },
-  phone: { type: String, required: false },
-  address: { type: String, required: false },
-  address2: { type: String, required: false },
-  city: { type: String, required: false },
-  state: { type: String, required: false },
-  country: { type: String, required: false },
-  postalCode: { type: String, required: false },
 });
 
 const Payment = mongoose.model("Payment", paymentSchema);

@@ -66,11 +66,12 @@ export default function UserOrdersPage() {
 
   useEffect(() => {
     // Filter orders based on status
+    const ordersArray = orders ?? [];
     if (statusFilter === "all") {
-      setFilteredOrders(orders);
+      setFilteredOrders(ordersArray);
     } else {
       setFilteredOrders(
-        orders.filter(
+        ordersArray.filter(
           (order) => order.status?.toLowerCase() === statusFilter.toLowerCase()
         )
       );
@@ -172,11 +173,11 @@ export default function UserOrdersPage() {
   };
 
   const statusOptions = [
-    { value: "all", label: "Todos los pedidos", count: orders.length },
+    { value: "all", label: "Todos los pedidos", count: (orders ?? []).length },
     {
       value: "pending",
       label: "Pendientes",
-      count: orders.filter(
+      count: (orders ?? []).filter(
         (o) =>
           o.status?.toLowerCase() === "pending" ||
           o.status?.toLowerCase() === "pendiente"
@@ -185,7 +186,7 @@ export default function UserOrdersPage() {
     {
       value: "processing",
       label: "Procesando",
-      count: orders.filter(
+      count: (orders ?? []).filter(
         (o) =>
           o.status?.toLowerCase() === "processing" ||
           o.status?.toLowerCase() === "procesando"
@@ -194,7 +195,7 @@ export default function UserOrdersPage() {
     {
       value: "shipping",
       label: "En camino",
-      count: orders.filter(
+      count: (orders ?? []).filter(
         (o) =>
           o.status?.toLowerCase() === "shipping" ||
           o.status?.toLowerCase() === "en camino" ||
@@ -204,7 +205,7 @@ export default function UserOrdersPage() {
     {
       value: "delivered",
       label: "Entregados",
-      count: orders.filter(
+      count: (orders ?? []).filter(
         (o) =>
           o.status?.toLowerCase() === "delivered" ||
           o.status?.toLowerCase() === "entregado"
@@ -284,9 +285,9 @@ export default function UserOrdersPage() {
           <div className="flex justify-center py-12">
             <LoadingSpinner className="h-8 w-8" />
           </div>
-        ) : filteredOrders.length > 0 ? (
+        ) : (filteredOrders ?? []).length > 0 ? (
           <div className="space-y-4">
-            {filteredOrders.map((order) => (
+            {(filteredOrders ?? []).map((order) => (
               <Card
                 key={order._id}
                 className="bg-white/70 backdrop-blur-sm border-amber-200 hover:shadow-lg transition-all duration-300"

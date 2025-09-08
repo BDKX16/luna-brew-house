@@ -14,6 +14,7 @@ import {
   Truck,
   Tag,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,6 +46,11 @@ import {
   getSubscriptionPlans,
   validateDiscount,
 } from "@/services/public";
+import {
+  createMercadoPagoPreference,
+  processDirectPayment,
+} from "@/services/private";
+import MercadoPagoOptions from "@/components/checkout/MercadoPagoOptions";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 
 // Definición de tipos
@@ -106,6 +112,11 @@ export default function CheckoutPage() {
   const [loadingBeers, setLoadingBeers] = useState(true);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(true);
   const [loadingDiscount, setLoadingDiscount] = useState(false);
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"mercadopago" | "cash">(
+    "mercadopago"
+  );
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
@@ -454,16 +465,6 @@ export default function CheckoutPage() {
 
   const hasSubscription = cart.some((item) => item.type === "subscription");
 
-  const handleProceedToCheckout = () => {
-    if (isAuthenticated) {
-      // Si el usuario está autenticado, ir directamente al pago
-      setCheckoutStep("payment");
-    } else {
-      // Si no está autenticado, mostrar opciones de autenticación
-      setCheckoutStep("auth");
-    }
-  };
-
   const handleAuthComplete = () => {
     setCheckoutStep("payment");
   };
@@ -532,6 +533,54 @@ export default function CheckoutPage() {
     });
   };
 
+  // Función para proceder al checkout con MercadoPago
+  const handleProceedToCheckout = async () => {
+    if (!isAuthenticated) {
+      setCheckoutStep("auth");
+      return;
+    }
+
+    if (cart.length === 0) {
+      toast({
+        title: "Carrito vacío",
+        description: "Agrega productos antes de proceder al pago",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Avanzar al paso de pago
+    setCheckoutStep("payment");
+  };
+
+  // Función para manejar el pago exitoso
+  const handlePaymentSuccess = (paymentData: any) => {
+    toast({
+      title: "¡Pago exitoso!",
+      description: "Tu pedido ha sido procesado correctamente.",
+    });
+
+    // Limpiar el carrito
+    setCart([]);
+    setAppliedDiscount(null);
+    setDiscountCode("");
+
+    // Redirigir a página de confirmación o pedidos
+    router.push("/perfil/pedidos");
+  };
+
+  // Función para manejar errores de pago
+  const handlePaymentError = (error: string) => {
+    toast({
+      title: "Error en el pago",
+      description: error,
+      variant: "destructive",
+    });
+
+    // Volver al paso de carrito
+    setCheckoutStep("cart");
+  };
+
   // Loading state
   if (loadingBeers || loadingSubscriptions) {
     return (
@@ -557,7 +606,7 @@ export default function CheckoutPage() {
 
         <main className="flex-1 py-10">
           <div className="container flex flex-col items-center justify-center h-full">
-            <LoadingSpinner size="large" />
+            <LoadingSpinner size="lg" />
             <p className="mt-4 text-muted-foreground">Cargando productos...</p>
           </div>
         </main>
@@ -1236,7 +1285,7 @@ export default function CheckoutPage() {
                                     disabled={loadingDiscount}
                                   >
                                     {loadingDiscount ? (
-                                      <LoadingSpinner size="small" />
+                                      <LoadingSpinner size="sm" />
                                     ) : (
                                       "Aplicar"
                                     )}
@@ -1283,8 +1332,16 @@ export default function CheckoutPage() {
                             <Button
                               className="w-full rounded-full bg-amber-600 hover:bg-amber-700"
                               onClick={handleProceedToCheckout}
+                              disabled={loadingCheckout}
                             >
-                              Proceder al pago
+                              {loadingCheckout ? (
+                                <>
+                                  <LoadingSpinner size="sm" />
+                                  <span className="ml-2">Procesando...</span>
+                                </>
+                              ) : (
+                                "Proceder al pago"
+                              )}
                             </Button>
 
                             <p className="text-xs text-center text-muted-foreground">
@@ -1424,7 +1481,18 @@ export default function CheckoutPage() {
               <div className="lg:col-span-2">
                 <Card className="rounded-xl overflow-hidden">
                   <CardContent className="p-6">
-                    <h3 className="text-xl font-bold mb-6">Método de pago</h3>
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-bold">Método de pago</h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCheckoutStep("cart")}
+                        className="flex items-center gap-2"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        Volver
+                      </Button>
+                    </div>
 
                     {isAuthenticated ? (
                       <div className="space-y-6">
@@ -1434,22 +1502,27 @@ export default function CheckoutPage() {
                             <p className="text-green-800">
                               Sesión iniciada como{" "}
                               <span className="font-bold">
-                                {user?.name || user?.email || "Usuario"}
+                                {user?.firstName} {user?.lastName} (
+                                {user?.email})
                               </span>
                             </p>
                           </div>
                         </div>
 
-                        <Button className="w-full h-12 rounded-full bg-[#009ee3] hover:bg-[#008fcf] text-white flex items-center justify-center gap-2">
-                          <Image
-                            src="logo-mercado-pago-icone-512.png"
-                            alt="Mercado Pago"
-                            width={100}
-                            height={24}
-                            className="h-6 w-auto"
-                          />
-                          <span>Pagar con Mercado Pago</span>
-                        </Button>
+                        {/* Componente de MercadoPago */}
+                        <MercadoPagoOptions
+                          cart={cart}
+                          user={user}
+                          appliedDiscount={appliedDiscount}
+                          discountCode={discountCode}
+                          onPaymentSuccess={handlePaymentSuccess}
+                          onPaymentError={handlePaymentError}
+                          calculateTotal={() => calculateTotal()}
+                          calculateSubtotal={() => calculateSubtotal()}
+                          calculateDiscountAmount={() =>
+                            calculateDiscountAmount()
+                          }
+                        />
                       </div>
                     ) : (
                       <div className="space-y-4">

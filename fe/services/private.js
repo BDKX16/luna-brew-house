@@ -1623,12 +1623,111 @@ export const getMyOrders = () => {
 
   return {
     call: axios
-      .get(`${baseUrl}/users/orders`, {
+      .get(`${baseUrl}/payments/my-orders`, {
         ...headers,
         signal: controller.signal,
       })
       .catch((error) => {
-        console.error("Error fetching my orders:", error);
+        // Solo loggear errores que no sean de cancelación
+        if (error.name !== "CanceledError" && error.name !== "AbortError") {
+          console.error("Error fetching my orders:", error);
+        }
+        throw error;
+      }),
+    controller,
+  };
+};
+
+/**********
+ * CHECKOUT Y PAGOS
+ ************/
+
+// Crear preferencia de MercadoPago
+export const createMercadoPagoPreference = (checkoutData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .post(`${baseUrl}/payments/create-preference`, checkoutData, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error creating MercadoPago preference:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Procesar pago directo con tarjeta
+export const processDirectPayment = (paymentData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .post(`${baseUrl}/payments/process-payment`, paymentData, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error processing direct payment:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Procesar checkout para cervezas (LEGACY - Checkout Pro)
+export const processCheckout = (checkoutData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .post(`${baseUrl}/payments/checkout`, checkoutData, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error processing checkout:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Procesar checkout para suscripciones (LEGACY - Checkout Pro)
+export const processSubscriptionCheckout = (checkoutData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .post(`${baseUrl}/payments/subscription-checkout`, checkoutData, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error processing subscription checkout:", error);
         throw error;
       }),
     controller,
