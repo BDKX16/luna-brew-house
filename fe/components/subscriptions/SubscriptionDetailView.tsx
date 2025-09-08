@@ -109,19 +109,19 @@ export default function SubscriptionDetailView({
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-3xl mb-2">{subscription.name}</CardTitle>
+                    <CardTitle className="text-3xl mb-2">
+                      {subscription.name}
+                    </CardTitle>
                     {subscription.planType && (
-                      <Badge 
-                        variant="secondary" 
+                      <Badge
+                        variant="secondary"
                         className="bg-amber-100 text-amber-800 capitalize"
                       >
                         Plan {subscription.planType}
                       </Badge>
                     )}
                     {subscription.popular && (
-                      <Badge 
-                        className="ml-2 bg-green-100 text-green-800 border-green-200"
-                      >
+                      <Badge className="ml-2 bg-green-100 text-green-800 border-green-200">
                         <Star className="h-3 w-3 mr-1" />
                         Más popular
                       </Badge>
@@ -157,14 +157,18 @@ export default function SubscriptionDetailView({
                     <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg">
                       <Package className="h-6 w-6 text-amber-600" />
                       <div>
-                        <p className="font-medium">{subscription.liters}L de cerveza</p>
+                        <p className="font-medium">
+                          {subscription.liters}L de cerveza
+                        </p>
                         <p className="text-sm text-gray-600">Por entrega</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
                       {getFrequencyIcon(subscription.deliveryFrequency)}
                       <div>
-                        <p className="font-medium capitalize">Entrega {subscription.deliveryFrequency}</p>
+                        <p className="font-medium capitalize">
+                          Entrega {subscription.deliveryFrequency}
+                        </p>
                         <p className="text-sm text-gray-600">Programada</p>
                       </div>
                     </div>
@@ -172,8 +176,12 @@ export default function SubscriptionDetailView({
                       <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
                         <Calendar className="h-6 w-6 text-green-600" />
                         <div>
-                          <p className="font-medium">{subscription.duration} meses</p>
-                          <p className="text-sm text-gray-600">Duración mínima</p>
+                          <p className="font-medium">
+                            {subscription.duration} meses
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Duración mínima
+                          </p>
                         </div>
                       </div>
                     )}
@@ -181,7 +189,9 @@ export default function SubscriptionDetailView({
                       <Users className="h-6 w-6 text-purple-600" />
                       <div>
                         <p className="font-medium">Variedades premium</p>
-                        <p className="text-sm text-gray-600">Selección artesanal</p>
+                        <p className="text-sm text-gray-600">
+                          Selección artesanal
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -190,7 +200,9 @@ export default function SubscriptionDetailView({
                 {/* Características */}
                 {subscription.features && subscription.features.length > 0 && (
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Características</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                      Características
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {subscription.features.map((feature, index) => (
                         <div key={index} className="flex items-center gap-2">
@@ -205,7 +217,9 @@ export default function SubscriptionDetailView({
                 {/* Beneficios */}
                 {subscription.benefits && subscription.benefits.length > 0 && (
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Beneficios adicionales</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                      Beneficios adicionales
+                    </h3>
                     <div className="space-y-2">
                       {subscription.benefits.map((benefit, index) => (
                         <div key={index} className="flex items-start gap-2">
@@ -226,7 +240,9 @@ export default function SubscriptionDetailView({
                     size="lg"
                     className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-3 text-lg"
                   >
-                    {isAuthenticated ? "Suscribirme ahora" : "Iniciar sesión para suscribirme"}
+                    {isAuthenticated
+                      ? "Suscribirme ahora"
+                      : "Iniciar sesión para suscribirme"}
                   </Button>
                   <p className="text-xs text-gray-500 mt-2">
                     Puedes cancelar en cualquier momento
@@ -251,21 +267,28 @@ export default function SubscriptionDetailView({
                 {subscription.discount && (
                   <div className="flex justify-between text-sm text-green-600">
                     <span>Descuento ({subscription.discount}%):</span>
-                    <span>-{formatPrice(subscription.price * subscription.discount / 100)}</span>
+                    <span>
+                      -
+                      {formatPrice(
+                        (subscription.price * subscription.discount) / 100
+                      )}
+                    </span>
                   </div>
                 )}
                 <Separator />
                 <div className="flex justify-between font-medium">
                   <span>Total por {subscription.deliveryFrequency}:</span>
                   <span className="text-amber-800">
-                    {subscription.discount 
-                      ? formatPrice(subscription.price * (1 - subscription.discount / 100))
-                      : formatPrice(subscription.price)
-                    }
+                    {subscription.discount
+                      ? formatPrice(
+                          subscription.price * (1 - subscription.discount / 100)
+                        )
+                      : formatPrice(subscription.price)}
                   </span>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Precio por litro: {formatPrice(subscription.price / subscription.liters)}/L
+                  Precio por litro:{" "}
+                  {formatPrice(subscription.price / subscription.liters)}/L
                 </div>
               </CardContent>
             </Card>

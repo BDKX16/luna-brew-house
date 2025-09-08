@@ -883,7 +883,8 @@ router.post("/payments/webhook", async (req, res) => {
     console.log("Body:", JSON.stringify(req.body, null, 2));
     console.log("Headers:", JSON.stringify(req.headers, null, 2));
 
-    const { type, data } = req.query;
+    const { type } = req.query;
+    const paymentId = req.query["data.id"]; // Obtener el ID del pago de los query params
 
     // Solo procesar notificaciones de pagos
     if (type !== "payment") {
@@ -891,17 +892,74 @@ router.post("/payments/webhook", async (req, res) => {
       return res.status(200).send();
     }
 
+    // Validar que tenemos el ID del pago
+    if (!paymentId) {
+      console.log("❌ No se encontró data.id en los query params");
+      return res.status(400).send();
+    }
+
     console.log("💳 Procesando notificación de pago...");
 
     // Verificar firma de MercadoPago (en producción)
     if (process.env.NODE_ENV === "production") {
       console.log("🔐 Verificando firma en producción...");
-      // Aquí iría la lógica de verificación como la que tenías antes
-      // Omitido para simplificar
+
+      try {
+        const xSignature = req.headers["x-signature"];
+        const xRequestId = req.headers["x-request-id"];
+
+        if (!xSignature) {
+          console.log("❌ No se encontró header x-signature");
+          return res.status(401).send();
+        }
+
+        // Extraer timestamp y hash de la firma
+        const signatureParts = xSignature.split(",");
+        let ts, hash;
+
+        signatureParts.forEach((part) => {
+          const [key, value] = part.split("=");
+          if (key === "ts") ts = value;
+          if (key === "v1") hash = value;
+        });
+
+        if (!ts || !hash) {
+          console.log("❌ Formato de firma inválido");
+          return res.status(401).send();
+        }
+
+        // Crear string para verificar firma
+        const dataId = paymentId;
+        const stringToSign = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+
+        // Calcular hash esperado usando el webhook secret
+        const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+        if (!webhookSecret) {
+          console.log("❌ MERCADOPAGO_WEBHOOK_SECRET no configurado");
+          return res.status(500).send();
+        }
+
+        const expectedHash = crypto
+          .createHmac("sha256", webhookSecret)
+          .update(stringToSign)
+          .digest("hex");
+
+        if (hash !== expectedHash) {
+          console.log("❌ Firma inválida");
+          console.log("String a firmar:", stringToSign);
+          console.log("Hash recibido:", hash);
+          console.log("Hash esperado:", expectedHash);
+          return res.status(401).send();
+        }
+
+        console.log("✅ Firma verificada correctamente");
+      } catch (signatureError) {
+        console.error("❌ Error verificando firma:", signatureError);
+        return res.status(401).send();
+      }
     }
 
     // Obtener información detallada del pago
-    const paymentId = data.id;
     console.log("🔍 Obteniendo información del pago ID:", paymentId);
 
     let paymentInfo;

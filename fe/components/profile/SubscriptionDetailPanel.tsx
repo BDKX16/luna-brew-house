@@ -74,7 +74,9 @@ export default function SubscriptionDetailPanel({
   onCancelSubscription,
 }: SubscriptionDetailPanelProps) {
   const router = useRouter();
-  const [selectedBeerType, setSelectedBeerType] = useState(subscription.beerType || "");
+  const [selectedBeerType, setSelectedBeerType] = useState(
+    subscription.beerType || ""
+  );
   const [isUpdating, setIsUpdating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -105,11 +107,7 @@ export default function SubscriptionDetailPanel({
           </Badge>
         );
       default:
-        return (
-          <Badge variant="secondary">
-            {status}
-          </Badge>
-        );
+        return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
@@ -174,7 +172,9 @@ export default function SubscriptionDetailPanel({
             <Card className="border-amber-200">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-2xl">{subscription.planName}</CardTitle>
+                  <CardTitle className="text-2xl">
+                    {subscription.planName}
+                  </CardTitle>
                   {getStatusBadge(subscription.status)}
                 </div>
               </CardHeader>
@@ -184,7 +184,9 @@ export default function SubscriptionDetailPanel({
                     <Package className="h-5 w-5 text-amber-600" />
                     <div>
                       <p className="font-medium">Volumen</p>
-                      <p className="text-sm text-gray-600">{subscription.liters}L por entrega</p>
+                      <p className="text-sm text-gray-600">
+                        {subscription.liters}L por entrega
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -200,20 +202,24 @@ export default function SubscriptionDetailPanel({
                     <CreditCard className="h-5 w-5 text-amber-600" />
                     <div>
                       <p className="font-medium">Precio</p>
-                      <p className="text-sm text-gray-600">{formatPrice(subscription.price)}</p>
+                      <p className="text-sm text-gray-600">
+                        {formatPrice(subscription.price)}
+                      </p>
                     </div>
                   </div>
-                  {subscription.deliveriesLeft && subscription.totalDeliveries && (
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-amber-600" />
-                      <div>
-                        <p className="font-medium">Entregas restantes</p>
-                        <p className="text-sm text-gray-600">
-                          {subscription.deliveriesLeft} de {subscription.totalDeliveries}
-                        </p>
+                  {subscription.deliveriesLeft &&
+                    subscription.totalDeliveries && (
+                      <div className="flex items-center gap-3">
+                        <CheckCircle className="h-5 w-5 text-amber-600" />
+                        <div>
+                          <p className="font-medium">Entregas restantes</p>
+                          <p className="text-sm text-gray-600">
+                            {subscription.deliveriesLeft} de{" "}
+                            {subscription.totalDeliveries}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
 
                 <Separator />
@@ -245,7 +251,9 @@ export default function SubscriptionDetailPanel({
                     <Separator />
                     <div>
                       <h4 className="font-medium mb-2">Dirección de entrega</h4>
-                      <p className="text-sm text-gray-600">{subscription.address}</p>
+                      <p className="text-sm text-gray-600">
+                        {subscription.address}
+                      </p>
                     </div>
                   </>
                 )}
@@ -295,7 +303,12 @@ export default function SubscriptionDetailPanel({
                     </div>
                     {subscription.beerType && (
                       <p className="text-xs text-gray-500 mt-1">
-                        Actual: {beerTypes.find(t => t.value === subscription.beerType)?.label}
+                        Actual:{" "}
+                        {
+                          beerTypes.find(
+                            (t) => t.value === subscription.beerType
+                          )?.label
+                        }
                       </p>
                     )}
                   </div>
@@ -322,12 +335,16 @@ export default function SubscriptionDetailPanel({
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Precio mensual:</span>
-                  <span className="font-medium">{formatPrice(subscription.price)}</span>
+                  <span className="font-medium">
+                    {formatPrice(subscription.price)}
+                  </span>
                 </div>
                 {subscription.paymentMethod && (
                   <div className="flex justify-between text-sm">
                     <span>Método de pago:</span>
-                    <span className="capitalize">{subscription.paymentMethod}</span>
+                    <span className="capitalize">
+                      {subscription.paymentMethod}
+                    </span>
                   </div>
                 )}
               </CardContent>
@@ -354,19 +371,24 @@ export default function SubscriptionDetailPanel({
                         className="w-full"
                         disabled={isCancelling}
                       >
-                        {isCancelling ? "Cancelando..." : "Cancelar suscripción"}
+                        {isCancelling
+                          ? "Cancelando..."
+                          : "Cancelar suscripción"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Esta acción cancelará permanentemente tu suscripción "{subscription.planName}".
-                          No podrás recuperarla una vez cancelada.
+                          Esta acción cancelará permanentemente tu suscripción "
+                          {subscription.planName}". No podrás recuperarla una
+                          vez cancelada.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>No, mantener suscripción</AlertDialogCancel>
+                        <AlertDialogCancel>
+                          No, mantener suscripción
+                        </AlertDialogCancel>
                         <AlertDialogAction
                           onClick={handleCancelSubscription}
                           className="bg-red-600 hover:bg-red-700"

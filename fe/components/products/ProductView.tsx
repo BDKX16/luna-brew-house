@@ -50,7 +50,7 @@ export default function ProductView({ product }: ProductViewProps) {
 
     // Obtener carrito actual del localStorage
     const currentCart = JSON.parse(localStorage.getItem("cart") || "[]");
-    
+
     // Buscar si el producto ya existe en el carrito
     const existingProductIndex = currentCart.findIndex(
       (item: any) => item.id === product.id && item.type === "beer"
@@ -129,24 +129,32 @@ export default function ProductView({ product }: ProductViewProps) {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 {product.category && (
-                  <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                  <Badge
+                    variant="secondary"
+                    className="bg-amber-100 text-amber-800"
+                  >
                     {product.category}
                   </Badge>
                 )}
                 {product.stock !== undefined && product.stock > 0 && (
-                  <Badge variant="outline" className="text-green-600 border-green-600">
+                  <Badge
+                    variant="outline"
+                    className="text-green-600 border-green-600"
+                  >
                     En stock
                   </Badge>
                 )}
                 {product.stock !== undefined && product.stock === 0 && (
-                  <Badge variant="destructive">
-                    Sin stock
-                  </Badge>
+                  <Badge variant="destructive">Sin stock</Badge>
                 )}
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {product.name}
+              </h1>
               {product.type && (
-                <p className="text-lg text-gray-600 capitalize">{product.type}</p>
+                <p className="text-lg text-gray-600 capitalize">
+                  {product.type}
+                </p>
               )}
             </div>
 
@@ -186,7 +194,9 @@ export default function ProductView({ product }: ProductViewProps) {
             {product.ingredients && product.ingredients.length > 0 && (
               <div>
                 <h3 className="text-lg font-semibold mb-2">Ingredientes</h3>
-                <p className="text-gray-600">{product.ingredients.join(", ")}</p>
+                <p className="text-gray-600">
+                  {product.ingredients.join(", ")}
+                </p>
               </div>
             )}
 
@@ -256,11 +266,15 @@ export default function ProductView({ product }: ProductViewProps) {
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
               <div className="flex items-center gap-3">
                 <Truck className="h-5 w-5 text-green-600" />
-                <span className="text-sm">Envío gratis en pedidos superiores a $15.000</span>
+                <span className="text-sm">
+                  Envío gratis en pedidos superiores a $15.000
+                </span>
               </div>
               <div className="flex items-center gap-3">
                 <Shield className="h-5 w-5 text-blue-600" />
-                <span className="text-sm">Garantía de calidad Luna Brew House</span>
+                <span className="text-sm">
+                  Garantía de calidad Luna Brew House
+                </span>
               </div>
               <div className="flex items-center gap-3">
                 <Star className="h-5 w-5 text-yellow-600" />

@@ -26,14 +26,19 @@ jobs:
           script: |
             cd /srv/luna-brew-house
 
+            # Detener contenedores actuales
             docker compose down
-            docker image rm nodesv-luna-brew-house:latest
-            docker image rm frontend-nextjs:latest
 
+            # Configurar Git
             git config --global user.email "xaveeg@gmail.com"
             git config --global user.name "BDKX16"
             git remote set-url origin https://BDKX16:${{ secrets.TOKEN }}@github.com/BDKX16/luna-brew-house.git
 
+            # Actualizar código
             git pull origin main
 
+            # Construir y levantar con caché (más eficiente)
             docker compose up -d --build
+
+            # Limpiar imágenes huérfanas solo si es necesario
+            docker image prune -f
