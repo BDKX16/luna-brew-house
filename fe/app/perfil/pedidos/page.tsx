@@ -518,12 +518,10 @@ export default function UserOrdersPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="font-medium">
-                      {formatDate(selectedOrder.orderDate)}
+                      {formatDate(selectedOrder.date)}
                     </p>
                     <p className="text-sm text-gray-500">
-                      {new Date(selectedOrder.orderDate).toLocaleTimeString(
-                        "es-ES"
-                      )}
+                      {new Date(selectedOrder.date).toLocaleTimeString("es-ES")}
                     </p>
                   </CardContent>
                 </Card>

@@ -41,44 +41,25 @@ if (!isTestEnvironment && process.env.NODE_ENV !== "production") {
 // Crear preferencia para checkout
 router.post("/payments/create-preference", checkAuth, async (req, res) => {
   try {
-    console.log("=== CREANDO PREFERENCIA DE PAGO ===");
-    console.log("Usuario ID:", req.userData._id);
-    console.log("Datos recibidos:", JSON.stringify(req.body, null, 2));
-
     const { cartItems, shippingInfo, discountInfo } = req.body;
     const userId = req.userData._id;
 
     // Validar datos requeridos
     if (!cartItems || cartItems.length === 0) {
-      console.log("❌ Error: Carrito vacío");
       return res.status(400).json({
         success: false,
         message: "El carrito está vacío",
       });
     }
 
-    console.log("📦 Procesando", cartItems.length, "elementos del carrito:");
-    cartItems.forEach((item, index) => {
-      console.log(
-        `  ${index + 1}. ${item.type} - ID: ${item.id} - Cantidad: ${
-          item.quantity || 1
-        }`
-      );
-    });
-
     // Obtener información completa de productos
     const items = [];
     let totalAmount = 0;
 
-    console.log("🔍 Buscando información de productos...");
-
     for (const cartItem of cartItems) {
-      console.log(`Procesando item: ${cartItem.type} - ${cartItem.id}`);
-
       if (cartItem.type === "beer") {
         const product = await Beer.findOne({ id: cartItem.id, nullDate: null });
         if (!product) {
-          console.log(`❌ Error: Producto beer no encontrado - ${cartItem.id}`);
           return res.status(400).json({
             success: false,
             message: `Producto no encontrado: ${cartItem.id}`,
@@ -87,10 +68,6 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
 
         const itemPrice = product.price;
         const itemTotal = itemPrice * cartItem.quantity;
-
-        console.log(
-          `  ✅ Beer encontrado: ${product.name} - Precio: $${itemPrice} - Cantidad: ${cartItem.quantity} - Total: $${itemTotal}`
-        );
 
         items.push({
           id: product.id,
@@ -110,16 +87,11 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
           nullDate: null,
         });
         if (!subscription) {
-          console.log(`❌ Error: Suscripción no encontrada - ${cartItem.id}`);
           return res.status(400).json({
             success: false,
             message: `Plan de suscripción no encontrado: ${cartItem.id}`,
           });
         }
-
-        console.log(
-          `  ✅ Suscripción encontrada: ${subscription.name} - Precio: $${subscription.price}`
-        );
 
         items.push({
           id: subscription.id,
@@ -136,35 +108,19 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
       }
     }
 
-    console.log("💰 Total antes de descuentos:", totalAmount);
-
     // Aplicar descuento si existe
     if (discountInfo && discountInfo.valid) {
-      console.log("🎫 Aplicando descuento:", discountInfo);
       const originalTotal = totalAmount;
 
       if (discountInfo.type === "percentage") {
         totalAmount = totalAmount * (1 - discountInfo.value / 100);
-        console.log(
-          `  📊 Descuento porcentual: ${discountInfo.value}% - De $${originalTotal} a $${totalAmount}`
-        );
       } else if (discountInfo.type === "fixed") {
         totalAmount = Math.max(totalAmount - discountInfo.value, 0);
-        console.log(
-          `  💵 Descuento fijo: $${discountInfo.value} - De $${originalTotal} a $${totalAmount}`
-        );
       }
-    } else {
-      console.log("🚫 Sin descuentos aplicados");
     }
-
-    console.log("💰 Total final:", totalAmount);
 
     // Crear orden en la base de datos
     const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-    console.log("📋 Creando orden:", orderId);
-    console.log("🏠 Información de envío:", shippingInfo);
 
     const newOrder = new Order({
       id: orderId,
@@ -205,14 +161,9 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
       nullDate: null,
     });
 
-    console.log("💾 Guardando orden en base de datos...");
     await newOrder.save();
-    console.log("✅ Orden guardada exitosamente con ID:", orderId);
 
     // Configurar preference para MercadoPago
-    console.log("🏛️ Configurando preferencia de MercadoPago...");
-    console.log("📦 Items para MercadoPago:", JSON.stringify(items, null, 2));
-
     const preferenceData = {
       items,
       payer: {
@@ -220,17 +171,17 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
         surname: shippingInfo.lastName,
         email: shippingInfo.email,
         phone: {
-          area_code: "11",
-          number: shippingInfo.phone?.replace(/\D/g, "") || "12345678",
+          area_code: "223",
+          number: shippingInfo.phone?.replace(/\D/g, ""),
         },
         identification: {
           type: "DNI",
           number: "12345678",
         },
         address: {
-          street_name: shippingInfo.address || "Calle Falsa",
-          street_number: 123,
-          zip_code: shippingInfo.postalCode || "1000",
+          street_name: shippingInfo.address,
+          street_number: 0,
+          zip_code: shippingInfo.postalCode,
         },
       },
       // URLs de notificación y retorno
@@ -255,28 +206,10 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
       expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutos
     };
 
-    console.log(
-      "📋 Datos de preferencia:",
-      JSON.stringify(preferenceData, null, 2)
-    );
-
     const preference = new Preference(client);
-    console.log("🔄 Enviando preferencia a MercadoPago...");
     const result = await preference.create({ body: preferenceData });
 
-    console.log("✅ Preferencia creada exitosamente:");
-    console.log("  ID:", result.id);
-    console.log("  Init Point:", result.init_point);
-    console.log("  Sandbox Init Point:", result.sandbox_init_point);
-
-    // Guardar la preferencia en la orden
-    console.log("💾 Actualizando orden con preferenceId...");
-    newOrder.preferenceId = result.id;
-    await newOrder.save();
-    console.log("✅ Orden actualizada con preferenceId");
-
     // Crear registro de pago inicial
-    console.log("💳 Creando registro de pago inicial...");
     const initialPayment = new Payments({
       userId,
       orderId: newOrder._id.toString(),
@@ -296,7 +229,6 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
     });
 
     await initialPayment.save();
-    console.log("✅ Registro de pago inicial creado");
 
     const responseData = {
       success: true,
@@ -309,14 +241,9 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
       },
     };
 
-    console.log(
-      "📤 Enviando respuesta:",
-      JSON.stringify(responseData, null, 2)
-    );
     res.json(responseData);
   } catch (error) {
-    console.error("❌ Error creando preferencia de MercadoPago:", error);
-    console.error("Stack trace:", error.stack);
+    console.error("Error creando preferencia de MercadoPago:", error);
     res.status(500).json({
       success: false,
       message: "Error interno del servidor",
@@ -328,10 +255,6 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
 // Procesar pago directo con tarjeta (Checkout API)
 router.post("/payments/process-payment", checkAuth, async (req, res) => {
   try {
-    console.log("=== PROCESANDO PAGO DIRECTO ===");
-    console.log("Usuario ID:", req.userData._id);
-    console.log("Datos recibidos:", JSON.stringify(req.body, null, 2));
-
     const {
       token,
       orderId,
@@ -343,10 +266,6 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
 
     const userId = req.userData._id;
 
-    console.log("🔍 Buscando orden...");
-    console.log("Order ID:", orderId);
-    console.log("User ID:", userId);
-
     // Buscar la orden
     const order = await Order.findOne({
       _id: orderId,
@@ -354,15 +273,12 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
     });
 
     if (!order) {
-      console.log("❌ Error: Orden no encontrada");
+      console.error("❌ Error: Orden no encontrada");
       return res.status(404).json({
         success: false,
         message: "Orden no encontrada",
       });
     }
-
-    console.log("✅ Orden encontrada:", order.id);
-    console.log("💰 Total de la orden: $", order.total);
 
     const payment = new Payment(client);
 
@@ -387,21 +303,7 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
       }/api/payments/webhook`,
     };
 
-    console.log("💳 Datos del pago:", JSON.stringify(paymentData, null, 2));
-    console.log("🔄 Enviando pago a MercadoPago...");
-
     const result = await payment.create({ body: paymentData });
-
-    console.log("📬 Respuesta de MercadoPago:");
-    console.log("  ID:", result.id);
-    console.log("  Status:", result.status);
-    console.log("  Status Detail:", result.status_detail);
-    console.log(
-      "  Transaction Details:",
-      JSON.stringify(result.transaction_details, null, 2)
-    );
-
-    console.log("💾 Creando registro de pago...");
 
     // Crear registro de pago
     const paymentRecord = new Payments({
@@ -423,13 +325,9 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
     });
 
     await paymentRecord.save();
-    console.log("✅ Registro de pago guardado");
-
-    console.log("🔄 Actualizando estado de la orden...");
 
     // Actualizar orden según el estado del pago
     if (result.status === "approved") {
-      console.log("✅ Pago aprobado - Actualizando orden a confirmada");
       order.paymentStatus = "paid";
       order.status = "confirmed";
       order.trackingSteps.push({
@@ -438,7 +336,6 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
         description: "Tu pago ha sido confirmado exitosamente",
       });
     } else if (result.status === "pending") {
-      console.log("⏳ Pago pendiente - Manteniendo orden en estado pendiente");
       order.paymentStatus = "pending";
       order.status = "pending";
       order.trackingSteps.push({
@@ -447,8 +344,6 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
         description: "Tu pago está siendo procesado",
       });
     } else {
-      console.log("❌ Pago rechazado - Marcando orden como cancelada");
-      console.log("  Status detail:", result.status_detail);
       order.paymentStatus = "failed";
       order.status = "cancelled";
       order.trackingSteps.push({
@@ -460,7 +355,6 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
 
     order.paymentId = paymentRecord._id;
     await order.save();
-    console.log("✅ Orden actualizada exitosamente");
 
     const responseData = {
       success: true,
@@ -471,10 +365,6 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
       },
     };
 
-    console.log(
-      "📤 Enviando respuesta de pago:",
-      JSON.stringify(responseData, null, 2)
-    );
     res.json(responseData);
   } catch (error) {
     console.error("❌ Error procesando pago:", error);
@@ -876,12 +766,8 @@ router.get("/payments/order-status/:orderId", checkAuth, async (req, res) => {
 // Obtener pedidos del usuario autenticado
 router.get("/payments/my-orders", checkAuth, async (req, res) => {
   try {
-    console.log("=== OBTENIENDO PEDIDOS DEL USUARIO ===");
     const userId = req.userData._id;
     const { status } = req.query;
-
-    console.log("Usuario ID:", userId);
-    console.log("Filtro de estado:", status);
 
     // Construir filtro
     const filter = { "customer.userId": userId, nullDate: null };
@@ -893,29 +779,16 @@ router.get("/payments/my-orders", checkAuth, async (req, res) => {
       )
     ) {
       filter.status = status;
-      console.log("✅ Filtro de estado aplicado:", status);
     }
-
-    console.log("🔍 Filtro de búsqueda:", JSON.stringify(filter, null, 2));
 
     // Obtener órdenes
     const orders = await Order.find(filter).sort({ date: -1 });
-
-    console.log("📦 Órdenes encontradas:", orders.length);
-    orders.forEach((order, index) => {
-      console.log(
-        `  ${index + 1}. ${order.id} - ${order.status} - $${order.total} - ${
-          order.date
-        }`
-      );
-    });
 
     const responseData = {
       success: true,
       data: { data: orders },
     };
 
-    console.log("📤 Enviando respuesta con", orders.length, "órdenes");
     res.status(200).json(responseData);
   } catch (error) {
     console.error("❌ Error al obtener pedidos:", error);
@@ -930,39 +803,26 @@ router.get("/payments/my-orders", checkAuth, async (req, res) => {
 // Webhook para recibir notificaciones de pago de MercadoPago
 router.post("/payments/webhook", async (req, res) => {
   try {
-    console.log("=== WEBHOOK DE PAGOS RECIBIDO ===");
-    console.log("Query params:", JSON.stringify(req.query, null, 2));
-    console.log("Body:", JSON.stringify(req.body, null, 2));
-    console.log("Headers:", JSON.stringify(req.headers, null, 2));
-
     const { type } = req.query;
     const paymentId = req.query["data.id"]; // Obtener el ID del pago de los query params
 
     // Solo procesar notificaciones de pagos
     if (type !== "payment") {
-      console.log("🚫 Tipo de notificación no es 'payment', ignorando:", type);
       return res.status(200).send();
     }
 
     // Validar que tenemos el ID del pago
     if (!paymentId) {
-      console.log("❌ No se encontró data.id en los query params");
       return res.status(400).send();
     }
 
-    console.log("💳 Procesando notificación de pago...");
-    console.log("🔍 Payment ID extraído:", paymentId);
-
     // Verificar firma de MercadoPago (en producción)
     if (process.env.NODE_ENV === "production") {
-      console.log("🔐 Verificando firma en producción...");
-
       try {
         const xSignature = req.headers["x-signature"];
         const xRequestId = req.headers["x-request-id"];
 
         if (!xSignature) {
-          console.log("❌ No se encontró header x-signature");
           return res.status(401).send();
         }
 
@@ -977,7 +837,6 @@ router.post("/payments/webhook", async (req, res) => {
         });
 
         if (!ts || !hash) {
-          console.log("❌ Formato de firma inválido");
           return res.status(401).send();
         }
 
@@ -988,7 +847,6 @@ router.post("/payments/webhook", async (req, res) => {
         // Calcular hash esperado usando el webhook secret
         const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
         if (!webhookSecret) {
-          console.log("❌ MERCADOPAGO_WEBHOOK_SECRET no configurado");
           return res.status(500).send();
         }
 
@@ -998,39 +856,21 @@ router.post("/payments/webhook", async (req, res) => {
           .digest("hex");
 
         if (hash !== expectedHash) {
-          console.log("❌ Firma inválida");
-          console.log("String a firmar:", stringToSign);
-          console.log("Hash recibido:", hash);
-          console.log("Hash esperado:", expectedHash);
           return res.status(401).send();
         }
-
-        console.log("✅ Firma verificada correctamente");
       } catch (signatureError) {
         console.error("❌ Error verificando firma:", signatureError);
         return res.status(401).send();
       }
     }
 
-    // Obtener información detallada del pago
-    console.log("🔍 Obteniendo información del pago ID:", paymentId);
-
     let paymentInfo;
 
     try {
       paymentInfo = await new Payment(client).get({ id: paymentId });
-      console.log("✅ Información del pago obtenida:");
-      console.log("  Status:", paymentInfo.status);
-      console.log("  Status Detail:", paymentInfo.status_detail);
-      console.log("  Amount:", paymentInfo.transaction_amount);
-      console.log("  External Reference:", paymentInfo.external_reference);
-      console.log("  Payment Method:", paymentInfo.payment_method_id);
     } catch (error) {
-      console.error("❌ Error al obtener información del pago:", error);
-
       // Si es un pago de prueba (ID 123456), crear una respuesta mock para testing
       if (paymentId === "123456") {
-        console.log("🧪 Detectado pago de prueba, creando datos mock...");
         paymentInfo = {
           id: "123456",
           status: "approved",
@@ -1043,7 +883,6 @@ router.post("/payments/webhook", async (req, res) => {
             identification: { number: "12345678" },
           },
         };
-        console.log("✅ Usando datos mock para testing");
       } else {
         return res.status(500).send();
       }
@@ -1054,65 +893,17 @@ router.post("/payments/webhook", async (req, res) => {
 
     if (!orderId) {
       console.error("❌ Orden no especificada en la notificación");
-      console.error("Payment Info:", JSON.stringify(paymentInfo, null, 2));
-
-      // Para pagos de prueba, intentar buscar por paymentId
-      if (paymentId === "123456") {
-        console.log(
-          "🔍 Buscando registro de pago por paymentId para testing..."
-        );
-        const paymentRecord = await Payments.findOne({ paymentId: paymentId });
-        if (paymentRecord) {
-          console.log("✅ Registro de pago encontrado:", paymentRecord.orderId);
-          // Actualizar el external_reference para continuar el procesamiento
-          paymentInfo.external_reference = paymentRecord.orderId;
-        } else {
-          console.log("❌ No se encontró registro de pago para ID:", paymentId);
-          return res.status(200).send(); // Responder OK para evitar reintentos
-        }
-      } else {
-        return res.status(400).send();
-      }
+      return res.status(400).send();
     }
 
     const finalOrderId = paymentInfo.external_reference;
-    console.log("📋 Actualizando orden:", finalOrderId);
-
-    console.log("💾 Actualizando registro de pago...");
-    console.log("🔍 Buscando registro de pago con orderId:", finalOrderId);
-
-    // Primero intentar encontrar el registro de pago para debugging
+    // Buscar registro de pago existente
     const existingPayment = await Payments.findOne({ orderId: finalOrderId });
-    if (existingPayment) {
-      console.log("✅ Registro de pago encontrado para actualizar");
-    } else {
-      console.log(
-        "⚠️ No se encontró registro de pago existente, buscando alternativas..."
-      );
-
-      // Buscar por paymentId si existe
+    if (!existingPayment) {
       if (paymentInfo.id) {
         const paymentByMpId = await Payments.findOne({
           paymentId: paymentInfo.id,
         });
-        if (paymentByMpId) {
-          console.log("✅ Encontrado registro de pago por paymentId");
-        }
-      }
-
-      // Buscar por preferenceId si no se encuentra por orderId
-      const paymentByPreference = await Payments.findOne({
-        preferenceId: { $exists: true },
-      })
-        .sort({ createdAt: -1 })
-        .limit(1);
-
-      if (paymentByPreference) {
-        console.log(
-          "✅ Encontrado registro de pago más reciente:",
-          paymentByPreference._id
-        );
-        console.log("   OrderId en el registro:", paymentByPreference.orderId);
       }
     }
 
@@ -1129,34 +920,23 @@ router.post("/payments/webhook", async (req, res) => {
     );
 
     if (paymentUpdateResult) {
-      console.log("✅ Registro de pago actualizado");
+      // Registro actualizado
     } else {
-      console.log(
-        "⚠️ No se encontró registro de pago para orden:",
-        finalOrderId
-      );
+      console.warn("⚠️ No se encontró registro de pago para orden:", finalOrderId);
     }
-
-    console.log("📋 Buscando y actualizando orden...");
-    console.log("🔍 Buscando orden con ID:", finalOrderId);
 
     // Actualizar estado de orden - buscar por ObjectId de MongoDB
     const order = await Order.findById(finalOrderId);
     if (order) {
-      console.log("✅ Orden encontrada:", order._id);
 
       if (
         paymentInfo.status === "approved" ||
         paymentInfo.status === "authorized"
       ) {
-        console.log("✅ Pago aprobado - Actualizando orden");
         order.paymentStatus = "completed";
 
         // Si la orden estaba pendiente, actualizarla a processing
         if (order.status === "pending") {
-          console.log(
-            "📦 Cambiando estado de orden de 'pending' a 'processing'"
-          );
           order.status = "processing";
 
           // Actualizar tracking steps
@@ -1168,68 +948,37 @@ router.post("/payments/webhook", async (req, res) => {
             current: true,
           });
 
-          console.log("📉 Reduciendo stock de productos...");
           // Reducir stock de productos
           for (const item of order.items) {
             if (item.type === "beer") {
-              console.log(
-                `  Reduciendo stock de ${item.id} en ${item.quantity} unidades`
-              );
               await Beer.findOneAndUpdate(
                 { id: item.id },
                 { $inc: { stock: -item.quantity } }
               );
             }
           }
-          console.log("✅ Stock actualizado");
         }
       } else if (
         ["rejected", "cancelled", "refunded", "charged_back"].includes(
           paymentInfo.status
         )
       ) {
-        console.log("❌ Pago rechazado/cancelado - Actualizando orden");
-        console.log("  Status:", paymentInfo.status);
-        console.log("  Status Detail:", paymentInfo.status_detail);
         order.paymentStatus = "failed";
-      } else {
-        console.log("⏳ Estado de pago pendiente:", paymentInfo.status);
       }
 
-      console.log("💾 Guardando cambios en la orden...");
       await order.save();
-      console.log("✅ Orden actualizada exitosamente");
     } else {
-      console.log("❌ Orden no encontrada con ObjectId:", finalOrderId);
-
       // Intentar búsqueda alternativa por campo 'id'
-      console.log("🔍 Intentando búsqueda alternativa por campo 'id'...");
       const orderByField = await Order.findOne({ id: finalOrderId });
 
       if (orderByField) {
-        console.log("✅ Orden encontrada por campo 'id':", orderByField._id);
         // Actualizar usando la orden encontrada
         orderByField.paymentStatus =
           paymentInfo.status === "approved" ? "completed" : "failed";
         await orderByField.save();
-        console.log("✅ Orden actualizada exitosamente (búsqueda alternativa)");
-      } else {
-        console.log("❌ Orden no encontrada en ninguna búsqueda");
-
-        // Listar las últimas 5 órdenes para debugging
-        const recentOrders = await Order.find()
-          .sort({ createdAt: -1 })
-          .limit(5);
-        console.log("📋 Últimas 5 órdenes creadas:");
-        recentOrders.forEach((o) => {
-          console.log(
-            `  - ObjectId: ${o._id}, id: ${o.id}, status: ${o.paymentStatus}`
-          );
-        });
       }
     }
 
-    console.log("✅ Webhook procesado exitosamente");
     res.status(200).send();
   } catch (error) {
     console.error("❌ Error en webhook de pagos:", error);
@@ -1251,14 +1000,9 @@ router.post("/payments/subscription-webhook", async (req, res) => {
 
     // Validar que tenemos el ID del pago
     if (!paymentId) {
-      console.log(
-        "❌ No se encontró data.id en los query params para suscripción"
-      );
+      console.error("❌ No se encontró data.id en los query params para suscripción");
       return res.status(400).send();
     }
-
-    console.log("💳 Procesando notificación de pago para suscripción...");
-    console.log("🔍 Payment ID extraído:", paymentId);
 
     // Obtener información detallada del pago
     let paymentInfo;
