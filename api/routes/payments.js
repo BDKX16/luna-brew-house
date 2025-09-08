@@ -899,6 +899,7 @@ router.post("/payments/webhook", async (req, res) => {
     }
 
     console.log("💳 Procesando notificación de pago...");
+    console.log("🔍 Payment ID extraído:", paymentId);
 
     // Verificar firma de MercadoPago (en producción)
     if (process.env.NODE_ENV === "production") {
@@ -1075,15 +1076,26 @@ router.post("/payments/webhook", async (req, res) => {
 // Webhook para suscripciones
 router.post("/payments/subscription-webhook", async (req, res) => {
   try {
-    const { type, data } = req.query;
+    const { type } = req.query;
+    const paymentId = req.query["data.id"]; // Obtener el ID del pago de los query params
 
     // Solo procesar notificaciones de pagos
     if (type !== "payment") {
       return res.status(200).send();
     }
 
+    // Validar que tenemos el ID del pago
+    if (!paymentId) {
+      console.log(
+        "❌ No se encontró data.id en los query params para suscripción"
+      );
+      return res.status(400).send();
+    }
+
+    console.log("💳 Procesando notificación de pago para suscripción...");
+    console.log("🔍 Payment ID extraído:", paymentId);
+
     // Obtener información detallada del pago
-    const paymentId = data.id;
     let paymentInfo;
 
     try {
