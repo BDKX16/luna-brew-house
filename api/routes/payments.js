@@ -239,16 +239,15 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
       }/api/payments/webhook`,
       back_urls: {
         success: `${
-          process.env.FRONTEND_URL || "http://localhost:3000"
+          process.env.FRONT_URL || "http://localhost:3000"
         }/pedido/confirmacion`,
         failure: `${
-          process.env.FRONTEND_URL || "http://localhost:3000"
+          process.env.FRONT_URL || "http://localhost:3000"
         }/pedido/error`,
         pending: `${
-          process.env.FRONTEND_URL || "http://localhost:3000"
+          process.env.FRONT_URL || "http://localhost:3000"
         }/pedido/pendiente`,
       },
-      auto_return: "approved",
       external_reference: newOrder._id.toString(),
       statement_descriptor: "LUNA BREW HOUSE",
       expires: true,
