@@ -14,8 +14,25 @@ const UserSubscription = require("../models/subscription");
 // Set up MercadoPago credentials
 const client = new MercadoPagoConfig({
   accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
-  options: { timeout: 5000, idempotencyKey: "abc" },
+  options: {
+    timeout: 5000,
+    idempotencyKey: "abc",
+  },
 });
+
+// Verificar que estamos usando credenciales de test
+const isTestEnvironment =
+  process.env.MERCADOPAGO_ACCESS_TOKEN?.startsWith("TEST-");
+console.log(
+  "🔧 MercadoPago Environment:",
+  isTestEnvironment ? "TEST/SANDBOX" : "PRODUCTION"
+);
+
+if (!isTestEnvironment && process.env.NODE_ENV !== "production") {
+  console.warn(
+    "⚠️  ADVERTENCIA: Usando credenciales de PRODUCCIÓN en entorno de desarrollo"
+  );
+}
 
 /**
  * CHECKOUT API ROUTES
@@ -216,9 +233,22 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
           zip_code: shippingInfo.postalCode || "1000",
         },
       },
+      // URLs de notificación y retorno
       notification_url: `${
         process.env.API_URL || "http://localhost:3001"
       }/api/payments/webhook`,
+      back_urls: {
+        success: `${
+          process.env.FRONTEND_URL || "http://localhost:3000"
+        }/pedido/confirmacion`,
+        failure: `${
+          process.env.FRONTEND_URL || "http://localhost:3000"
+        }/pedido/error`,
+        pending: `${
+          process.env.FRONTEND_URL || "http://localhost:3000"
+        }/pedido/pendiente`,
+      },
+      auto_return: "approved",
       external_reference: newOrder._id.toString(),
       statement_descriptor: "LUNA BREW HOUSE",
       expires: true,
