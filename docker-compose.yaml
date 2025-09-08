@@ -9,11 +9,12 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./api/.env
+    environment:
+      - TZ=America/Argentina/Buenos_Aires
+      - NODE_ENV=production
     ports:
       - "3019:3001"
     links:
-      - mongo
-    depends_on:
       - mongo
     networks:
       - shared-network
