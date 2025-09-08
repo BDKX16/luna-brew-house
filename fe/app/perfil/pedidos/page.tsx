@@ -16,6 +16,14 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   ArrowLeft,
   Package,
   CheckCircle,
@@ -25,6 +33,7 @@ import {
   Calendar,
   MapPin,
   CreditCard,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -35,6 +44,8 @@ export default function UserOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -49,9 +60,9 @@ export default function UserOrdersPage() {
       if (user && isAuthenticated) {
         try {
           const response = await callEndpoint(getMyOrders());
-          if (response && response.data) {
-            setOrders(response.data.data);
-            setFilteredOrders(response.data.data);
+          if (response && response.data && response.data.data) {
+            setOrders(response.data.data.data);
+            setFilteredOrders(response.data.data.data);
           }
         } catch (error) {
           if (error.name !== "CanceledError" && error.name !== "AbortError") {
@@ -132,6 +143,26 @@ export default function UserOrdersPage() {
     }
   };
 
+  const getStatusText = (status) => {
+    switch (status?.toLowerCase()) {
+      case "delivered":
+      case "entregado":
+        return "Entregado";
+      case "shipping":
+      case "en camino":
+      case "enviado":
+        return "En Camino";
+      case "processing":
+      case "procesando":
+        return "Procesando";
+      case "pending":
+      case "pendiente":
+        return "Pendiente";
+      default:
+        return status || "Sin estado";
+    }
+  };
+
   const getStatusBadgeColor = (status) => {
     switch (status?.toLowerCase()) {
       case "delivered":
@@ -170,6 +201,16 @@ export default function UserOrdersPage() {
       month: "long",
       year: "numeric",
     });
+  };
+
+  const openOrderDetails = (order) => {
+    setSelectedOrder(order);
+    setIsModalOpen(true);
+  };
+
+  const closeOrderDetails = () => {
+    setSelectedOrder(null);
+    setIsModalOpen(false);
   };
 
   const statusOptions = [
@@ -376,6 +417,7 @@ export default function UserOrdersPage() {
                         variant="outline"
                         size="sm"
                         className="border-amber-300 hover:bg-amber-50"
+                        onClick={() => openOrderDetails(order)}
                       >
                         <Eye className="h-4 w-4 mr-2" />
                         Ver Detalles
@@ -432,6 +474,241 @@ export default function UserOrdersPage() {
           </Card>
         )}
       </div>
+
+      {/* Modal de Detalles del Pedido */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-amber-600" />
+              Detalles del Pedido #{selectedOrder?.id}
+            </DialogTitle>
+            <DialogDescription>
+              Información completa de tu pedido
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-6">
+              {/* Estado y Fecha */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Estado del Pedido
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(selectedOrder.status)}
+                      <Badge className={getStatusColor(selectedOrder.status)}>
+                        {getStatusText(selectedOrder.status)}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Fecha del Pedido
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="font-medium">
+                      {formatDate(selectedOrder.orderDate)}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(selectedOrder.orderDate).toLocaleTimeString(
+                        "es-ES"
+                      )}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Información de Entrega */}
+              {selectedOrder.shippingInfo && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Información de Entrega
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="font-medium">
+                          {selectedOrder.shippingInfo.fullName}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {selectedOrder.shippingInfo.email}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {selectedOrder.shippingInfo.phone}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm">
+                          {selectedOrder.shippingInfo.address},{" "}
+                          {selectedOrder.shippingInfo.city}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {selectedOrder.shippingInfo.province} -{" "}
+                          {selectedOrder.shippingInfo.postalCode}
+                        </p>
+                        {selectedOrder.shippingInfo.notes && (
+                          <p className="text-sm text-gray-600 mt-2">
+                            <span className="font-medium">Notas:</span>{" "}
+                            {selectedOrder.shippingInfo.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Productos del Pedido */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Productos ({selectedOrder.items?.length || 0})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {selectedOrder.items?.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
+                            <Package className="h-6 w-6 text-amber-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {item.name || item.title}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {item.type === "beer" ? "Cerveza" : "Suscripción"}{" "}
+                              - Cantidad: {item.quantity || 1}
+                            </p>
+                            {item.description && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">
+                            {formatPrice(item.price * (item.quantity || 1))}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {formatPrice(item.price)} c/u
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Resumen de Pago */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" />
+                    Resumen de Pago
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span>{formatPrice(selectedOrder.subtotal || 0)}</span>
+                    </div>
+                    {selectedOrder.discount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Descuento:</span>
+                        <span>-{formatPrice(selectedOrder.discount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span>Envío:</span>
+                      <span>
+                        {selectedOrder.shippingCost > 0
+                          ? formatPrice(selectedOrder.shippingCost)
+                          : "Gratis"}
+                      </span>
+                    </div>
+                    <hr className="my-2" />
+                    <div className="flex justify-between font-bold text-lg">
+                      <span>Total:</span>
+                      <span className="text-amber-600">
+                        {formatPrice(selectedOrder.total)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Estado de Pago */}
+                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        Estado de Pago:
+                      </span>
+                      <Badge
+                        className={
+                          selectedOrder.paymentStatus === "completed"
+                            ? "bg-green-100 text-green-800 border-green-200"
+                            : selectedOrder.paymentStatus === "pending"
+                            ? "bg-yellow-100 text-yellow-800 border-yellow-200"
+                            : "bg-red-100 text-red-800 border-red-200"
+                        }
+                      >
+                        {selectedOrder.paymentStatus === "completed" &&
+                          "Pagado"}
+                        {selectedOrder.paymentStatus === "pending" &&
+                          "Pendiente"}
+                        {selectedOrder.paymentStatus === "failed" && "Falló"}
+                        {!selectedOrder.paymentStatus && "No especificado"}
+                      </Badge>
+                    </div>
+                    {selectedOrder.paymentMethod && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        Método: {selectedOrder.paymentMethod}
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Acciones del Modal */}
+              <div className="flex justify-between gap-3">
+                <Button
+                  variant="outline"
+                  onClick={closeOrderDetails}
+                  className="flex-1"
+                >
+                  Cerrar
+                </Button>
+                {(selectedOrder.status?.toLowerCase() === "delivered" ||
+                  selectedOrder.status?.toLowerCase() === "entregado") && (
+                  <Button className="flex-1 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white">
+                    Volver a Pedir
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
