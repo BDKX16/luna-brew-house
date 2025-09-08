@@ -1079,6 +1079,43 @@ router.post("/payments/webhook", async (req, res) => {
     console.log("📋 Actualizando orden:", finalOrderId);
 
     console.log("💾 Actualizando registro de pago...");
+    console.log("🔍 Buscando registro de pago con orderId:", finalOrderId);
+
+    // Primero intentar encontrar el registro de pago para debugging
+    const existingPayment = await Payments.findOne({ orderId: finalOrderId });
+    if (existingPayment) {
+      console.log("✅ Registro de pago encontrado para actualizar");
+    } else {
+      console.log(
+        "⚠️ No se encontró registro de pago existente, buscando alternativas..."
+      );
+
+      // Buscar por paymentId si existe
+      if (paymentInfo.id) {
+        const paymentByMpId = await Payments.findOne({
+          paymentId: paymentInfo.id,
+        });
+        if (paymentByMpId) {
+          console.log("✅ Encontrado registro de pago por paymentId");
+        }
+      }
+
+      // Buscar por preferenceId si no se encuentra por orderId
+      const paymentByPreference = await Payments.findOne({
+        preferenceId: { $exists: true },
+      })
+        .sort({ createdAt: -1 })
+        .limit(1);
+
+      if (paymentByPreference) {
+        console.log(
+          "✅ Encontrado registro de pago más reciente:",
+          paymentByPreference._id
+        );
+        console.log("   OrderId en el registro:", paymentByPreference.orderId);
+      }
+    }
+
     // Actualizar estado de pago
     const paymentUpdateResult = await Payments.findOneAndUpdate(
       { orderId: finalOrderId },
@@ -1101,10 +1138,12 @@ router.post("/payments/webhook", async (req, res) => {
     }
 
     console.log("📋 Buscando y actualizando orden...");
-    // Actualizar estado de orden
-    const order = await Order.findOne({ id: finalOrderId });
+    console.log("🔍 Buscando orden con ID:", finalOrderId);
+
+    // Actualizar estado de orden - buscar por ObjectId de MongoDB
+    const order = await Order.findById(finalOrderId);
     if (order) {
-      console.log("✅ Orden encontrada:", order.id);
+      console.log("✅ Orden encontrada:", order._id);
 
       if (
         paymentInfo.status === "approved" ||
@@ -1161,7 +1200,33 @@ router.post("/payments/webhook", async (req, res) => {
       await order.save();
       console.log("✅ Orden actualizada exitosamente");
     } else {
-      console.log("❌ Orden no encontrada:", finalOrderId);
+      console.log("❌ Orden no encontrada con ObjectId:", finalOrderId);
+
+      // Intentar búsqueda alternativa por campo 'id'
+      console.log("🔍 Intentando búsqueda alternativa por campo 'id'...");
+      const orderByField = await Order.findOne({ id: finalOrderId });
+
+      if (orderByField) {
+        console.log("✅ Orden encontrada por campo 'id':", orderByField._id);
+        // Actualizar usando la orden encontrada
+        orderByField.paymentStatus =
+          paymentInfo.status === "approved" ? "completed" : "failed";
+        await orderByField.save();
+        console.log("✅ Orden actualizada exitosamente (búsqueda alternativa)");
+      } else {
+        console.log("❌ Orden no encontrada en ninguna búsqueda");
+
+        // Listar las últimas 5 órdenes para debugging
+        const recentOrders = await Order.find()
+          .sort({ createdAt: -1 })
+          .limit(5);
+        console.log("📋 Últimas 5 órdenes creadas:");
+        recentOrders.forEach((o) => {
+          console.log(
+            `  - ObjectId: ${o._id}, id: ${o.id}, status: ${o.paymentStatus}`
+          );
+        });
+      }
     }
 
     console.log("✅ Webhook procesado exitosamente");
@@ -1328,45 +1393,5 @@ async function getSubscriptionInfoFromPayment(payment) {
     return null;
   }
 }
-
-// Endpoint para verificar registros de pago (debugging)
-router.get("/payments/debug/records", checkAuth, async (req, res) => {
-  try {
-    const userId = req.userData._id;
-    const limit = parseInt(req.query.limit) || 10;
-
-    const payments = await Payments.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(limit);
-
-    const orders = await Order.find({ userId })
-      .sort({ orderDate: -1 })
-      .limit(limit);
-
-    res.json({
-      success: true,
-      data: {
-        payments: payments.map((p) => ({
-          orderId: p.orderId,
-          amount: p.amount,
-          status: p.status,
-          paymentId: p.paymentId,
-          preferenceId: p.preferenceId,
-          createdAt: p.createdAt,
-        })),
-        orders: orders.map((o) => ({
-          id: o.id,
-          total: o.total,
-          paymentStatus: o.paymentStatus,
-          preferenceId: o.preferenceId,
-          orderDate: o.orderDate,
-        })),
-      },
-    });
-  } catch (error) {
-    console.error("Error obteniendo registros:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 module.exports = router;
