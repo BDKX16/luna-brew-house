@@ -102,8 +102,28 @@ export default function ProfilePage() {
         try {
           setOrdersLoading(true);
           const response = await callEndpoint(getMyOrders());
-          if (response && response.data) {
-            setOrders(response.data);
+          if (response && response.data && response.data.data) {
+            // Filtrar pedidos de cerveza (excluir suscripciones) y ordenar por fecha
+            const allOrders =
+              response.data.data.data || response.data.data || [];
+            const beerOrders = allOrders.filter((order) => {
+              const isSubscription =
+                order.orderType?.toLowerCase().includes("suscripción") ||
+                order.orderType?.toLowerCase().includes("subscription") ||
+                (order.items &&
+                  order.items.some(
+                    (item) =>
+                      item.type?.toLowerCase().includes("suscripción") ||
+                      item.type?.toLowerCase().includes("subscription")
+                  ));
+              return !isSubscription;
+            });
+
+            // Ordenar por fecha (más reciente primero)
+            const sortedOrders = beerOrders.sort(
+              (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+            );
+            setOrders(sortedOrders);
           }
           setOrdersLoaded(true);
         } catch (error) {
@@ -273,6 +293,13 @@ export default function ProfilePage() {
       setContentLoading(false);
     }
   };
+
+  // useEffect para cargar contenido promocional
+  useEffect(() => {
+    if (user && isAuthenticated && user.role !== "admin" && !contentLoaded) {
+      loadPromotionalContent();
+    }
+  }, [user, isAuthenticated, contentLoaded]);
 
   const stats = [
     {
@@ -569,14 +596,17 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <CardTitle className="text-xl">Mis Pedidos</CardTitle>
-                  <CardDescription>Historial de tus compras</CardDescription>
+                  <CardDescription>
+                    Historial de tus pedidos de cerveza
+                  </CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <p className="text-gray-600">
-                  Consulta el estado e historial de todos tus pedidos.
+                  Consulta el estado e historial de todos tus pedidos de
+                  cerveza.
                 </p>
 
                 {ordersLoading ? (
@@ -585,131 +615,272 @@ export default function ProfilePage() {
                   </div>
                 ) : orders.length > 0 ? (
                   <div className="space-y-3">
-                    {orders.slice(0, 3).map((order) => {
-                      const getStatusIcon = (status) => {
-                        switch (status?.toLowerCase()) {
-                          case "delivered":
-                          case "entregado":
-                            return (
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                            );
-                          case "shipping":
-                          case "en camino":
-                          case "enviado":
-                            return <Truck className="h-4 w-4 text-blue-600" />;
-                          case "processing":
-                          case "procesando":
-                            return (
-                              <Package className="h-4 w-4 text-yellow-600" />
-                            );
-                          default:
-                            return (
-                              <Package className="h-4 w-4 text-gray-600" />
-                            );
-                        }
-                      };
+                    {(() => {
+                      // Separar pedidos por prioridad
+                      // 1. Pedidos en curso (alta prioridad): preparación, en camino, listo para recoger, esperando horario
+                      const inProgressOrders = orders.filter((order) => {
+                        const status = order.status?.toLowerCase();
+                        return (
+                          status === "processing" ||
+                          status === "procesando" ||
+                          status === "en preparación" ||
+                          status === "shipped" ||
+                          status === "shipping" ||
+                          status === "en camino" ||
+                          status === "enviado" ||
+                          status === "ready_pickup" ||
+                          status === "listo para recoger" ||
+                          status === "waiting_schedule" ||
+                          status === "esperando horario"
+                        );
+                      });
 
-                      const getStatusColor = (status) => {
-                        switch (status?.toLowerCase()) {
-                          case "delivered":
-                          case "entregado":
-                            return "bg-green-50 border-green-200";
-                          case "shipping":
-                          case "en camino":
-                          case "enviado":
-                            return "bg-blue-50 border-blue-200";
-                          case "processing":
-                          case "procesando":
-                            return "bg-yellow-50 border-yellow-200";
-                          default:
-                            return "bg-gray-50 border-gray-200";
-                        }
-                      };
+                      // 2. Pedidos pendientes/confirmados (media prioridad)
+                      const pendingOrders = orders.filter((order) => {
+                        const status = order.status?.toLowerCase();
+                        return (
+                          status === "pending" ||
+                          status === "pendiente" ||
+                          status === "confirmed" ||
+                          status === "confirmado"
+                        );
+                      });
 
-                      const getStatusTextColor = (status) => {
-                        switch (status?.toLowerCase()) {
-                          case "delivered":
-                          case "entregado":
-                            return "text-green-800";
-                          case "shipping":
-                          case "en camino":
-                          case "enviado":
-                            return "text-blue-800";
-                          case "processing":
-                          case "procesando":
-                            return "text-yellow-800";
-                          default:
-                            return "text-gray-800";
-                        }
-                      };
+                      // 3. Pedidos completados (baja prioridad) - NO incluir cancelados
+                      const completedOrders = orders.filter((order) => {
+                        const status = order.status?.toLowerCase();
+                        return status === "delivered" || status === "entregado";
+                      });
 
-                      const formatOrderId = (id) => {
-                        return `#${id.slice(-6).toUpperCase()}`;
-                      };
+                      // Lógica de mostrado:
+                      // Si hay pedidos en curso, mostrar solo esos (máximo 3)
+                      // Si no hay en curso, mostrar pendientes + completados (máximo 3)
+                      let ordersToShow;
+                      if (inProgressOrders.length > 0) {
+                        ordersToShow = [
+                          ...inProgressOrders,
+                          ...pendingOrders,
+                        ].slice(0, 3);
+                      } else {
+                        ordersToShow = [
+                          ...pendingOrders,
+                          ...completedOrders,
+                        ].slice(0, 3);
+                      }
 
-                      const formatPrice = (price) => {
-                        return new Intl.NumberFormat("es-CL", {
-                          style: "currency",
-                          currency: "CLP",
-                          minimumFractionDigits: 0,
-                        }).format(price);
-                      };
+                      return ordersToShow.map((order) => {
+                        const getStatusIcon = (status) => {
+                          switch (status?.toLowerCase()) {
+                            case "delivered":
+                            case "entregado":
+                              return (
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                              );
+                            case "shipped":
+                            case "shipping":
+                            case "en camino":
+                            case "enviado":
+                              return (
+                                <Truck className="h-4 w-4 text-blue-600" />
+                              );
+                            case "processing":
+                            case "procesando":
+                            case "en preparación":
+                              return (
+                                <Package className="h-4 w-4 text-yellow-600" />
+                              );
+                            case "confirmed":
+                            case "confirmado":
+                              return (
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                              );
+                            case "ready_pickup":
+                            case "listo para recoger":
+                              return (
+                                <Package className="h-4 w-4 text-orange-600" />
+                              );
+                            case "waiting_schedule":
+                            case "esperando horario":
+                              return (
+                                <CalendarDays className="h-4 w-4 text-cyan-600" />
+                              );
+                            case "pending":
+                            case "pendiente":
+                              return (
+                                <Package className="h-4 w-4 text-gray-600" />
+                              );
+                            default:
+                              return (
+                                <Package className="h-4 w-4 text-gray-600" />
+                              );
+                          }
+                        };
 
-                      return (
-                        <div
-                          key={order._id}
-                          className={`flex items-center justify-between p-3 rounded-lg border ${getStatusColor(
-                            order.status
-                          )}`}
-                        >
-                          <div className="flex items-center gap-3">
-                            {getStatusIcon(order.status)}
-                            <div>
-                              <p
-                                className={`font-medium ${getStatusTextColor(
-                                  order.status
-                                )}`}
-                              >
-                                Pedido {formatOrderId(order._id)}
-                              </p>
-                              <p
-                                className={`text-sm ${getStatusTextColor(
-                                  order.status
-                                ).replace("800", "600")}`}
-                              >
-                                {order.status || "Pendiente"}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className={`border-${
-                              getStatusColor(order.status).includes("green")
-                                ? "green"
-                                : getStatusColor(order.status).includes("blue")
-                                ? "blue"
-                                : getStatusColor(order.status).includes(
-                                    "yellow"
-                                  )
-                                ? "yellow"
-                                : "gray"
-                            }-300 ${getStatusTextColor(order.status).replace(
-                              "800",
-                              "700"
+                        const getStatusColor = (status) => {
+                          switch (status?.toLowerCase()) {
+                            case "delivered":
+                            case "entregado":
+                              return "bg-green-50 border-green-200";
+                            case "shipped":
+                            case "shipping":
+                            case "en camino":
+                            case "enviado":
+                              return "bg-blue-50 border-blue-200";
+                            case "processing":
+                            case "procesando":
+                            case "en preparación":
+                              return "bg-yellow-50 border-yellow-200";
+                            case "confirmed":
+                            case "confirmado":
+                              return "bg-green-50 border-green-200";
+                            case "ready_pickup":
+                            case "listo para recoger":
+                              return "bg-orange-50 border-orange-200";
+                            case "waiting_schedule":
+                            case "esperando horario":
+                              return "bg-cyan-50 border-cyan-200";
+                            case "pending":
+                            case "pendiente":
+                              return "bg-gray-50 border-gray-200";
+                            default:
+                              return "bg-gray-50 border-gray-200";
+                          }
+                        };
+
+                        const getStatusTextColor = (status) => {
+                          switch (status?.toLowerCase()) {
+                            case "delivered":
+                            case "entregado":
+                              return "text-green-800";
+                            case "shipped":
+                            case "shipping":
+                            case "en camino":
+                            case "enviado":
+                              return "text-blue-800";
+                            case "processing":
+                            case "procesando":
+                            case "en preparación":
+                              return "text-yellow-800";
+                            case "confirmed":
+                            case "confirmado":
+                              return "text-green-800";
+                            case "ready_pickup":
+                            case "listo para recoger":
+                              return "text-orange-800";
+                            case "waiting_schedule":
+                            case "esperando horario":
+                              return "text-cyan-800";
+                            case "pending":
+                            case "pendiente":
+                              return "text-gray-800";
+                            default:
+                              return "text-gray-800";
+                          }
+                        };
+
+                        const getStatusText = (status) => {
+                          switch (status?.toLowerCase()) {
+                            case "delivered":
+                            case "entregado":
+                              return "Entregado";
+                            case "shipped":
+                            case "shipping":
+                            case "en camino":
+                            case "enviado":
+                              return "En camino";
+                            case "processing":
+                            case "procesando":
+                            case "en preparación":
+                              return "En preparación";
+                            case "confirmed":
+                            case "confirmado":
+                              return "Confirmado";
+                            case "ready_pickup":
+                            case "listo para recoger":
+                              return "Listo para recoger";
+                            case "waiting_schedule":
+                            case "esperando horario":
+                              return "Esperando horario";
+                            case "pending":
+                            case "pendiente":
+                              return "Pendiente";
+                            default:
+                              return status || "Sin estado";
+                          }
+                        };
+
+                        const formatOrderId = (id) => {
+                          return `#${id.slice(-6).toUpperCase()}`;
+                        };
+
+                        const formatPrice = (price) => {
+                          return new Intl.NumberFormat("es-CL", {
+                            style: "currency",
+                            currency: "CLP",
+                            minimumFractionDigits: 0,
+                          }).format(price);
+                        };
+
+                        return (
+                          <div
+                            key={order._id}
+                            className={`flex items-center justify-between p-3 rounded-lg border ${getStatusColor(
+                              order.status
                             )}`}
                           >
-                            {formatPrice(order.total || 0)}
-                          </Badge>
-                        </div>
-                      );
-                    })}
+                            <div className="flex items-center gap-3">
+                              {getStatusIcon(order.status)}
+                              <div>
+                                <p
+                                  className={`font-medium ${getStatusTextColor(
+                                    order.status
+                                  )}`}
+                                >
+                                  Pedido {formatOrderId(order._id)}
+                                </p>
+                                <p
+                                  className={`text-sm ${getStatusTextColor(
+                                    order.status
+                                  ).replace("800", "600")}`}
+                                >
+                                  {getStatusText(order.status)}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={`border-${
+                                getStatusColor(order.status).includes("green")
+                                  ? "green"
+                                  : getStatusColor(order.status).includes(
+                                      "blue"
+                                    )
+                                  ? "blue"
+                                  : getStatusColor(order.status).includes(
+                                      "yellow"
+                                    )
+                                  ? "yellow"
+                                  : "gray"
+                              }-300 ${getStatusTextColor(order.status).replace(
+                                "800",
+                                "700"
+                              )}`}
+                            >
+                              {formatPrice(order.total || 0)}
+                            </Badge>
+                          </div>
+                        );
+                      }); // Cierre del map
+                    })()}
                   </div>
                 ) : (
                   <div className="text-center py-6">
                     <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No tienes pedidos aún</p>
+                    <p className="text-gray-500">
+                      No tienes pedidos de cerveza aún
+                    </p>
                     <p className="text-sm text-gray-400">
-                      ¡Explora nuestros productos y haz tu primer pedido!
+                      ¡Explora nuestras cervezas y haz tu primer pedido!
                     </p>
                   </div>
                 )}
@@ -719,7 +890,7 @@ export default function ProfilePage() {
                     variant="outline"
                     className="w-full border-purple-300 hover:bg-purple-50 bg-transparent"
                   >
-                    Ver Todos los Pedidos
+                    Ver Todos los Pedidos de Cerveza
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
