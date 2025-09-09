@@ -158,10 +158,13 @@ router.patch(
         !status ||
         ![
           "pending",
+          "confirmed",
           "processing",
           "shipped",
           "delivered",
           "cancelled",
+          "ready_pickup",
+          "waiting_schedule",
         ].includes(status)
       ) {
         return res.status(400).json({ error: "Estado no válido" });
@@ -883,11 +886,14 @@ function formatDate(date) {
 function translateStatus(status) {
   const statusMap = {
     pending: "Pendiente",
-    processing: "Procesando",
-    shipped: "Enviado",
+    confirmed: "Confirmado",
+    processing: "En preparación",
+    shipped: "En camino",
     delivered: "Completado",
     cancelled: "Cancelado",
     failed: "Fallido",
+    ready_pickup: "Listo para recoger",
+    waiting_schedule: "Esperando horario",
   };
 
   return statusMap[status] || status;
@@ -896,28 +902,40 @@ function translateStatus(status) {
 // Funciones auxiliares para tracking
 function getTrackingStatusText(status) {
   const statusMap = {
-    pending: "Pedido recibido",
-    processing: "Preparando pedido",
+    pending: "Pendiente",
+    confirmed: "Confirmado",
+    processing: "En preparación",
     shipped: "En camino",
     delivered: "Entregado",
     cancelled: "Cancelado",
+    ready_pickup: "Listo para recoger",
+    waiting_schedule: "Esperando horario",
   };
 
   return statusMap[status] || status;
 }
 
 function updateTrackingStepsBasedOnStatus(trackingSteps, currentStatus) {
-  const statusOrder = ["pending", "processing", "shipped", "delivered"];
+  const statusOrder = [
+    "pending",
+    "confirmed",
+    "processing",
+    "shipped",
+    "delivered",
+  ];
   const currentIndex = statusOrder.indexOf(currentStatus);
 
   if (currentIndex === -1) return; // Status no válido o cancelado
 
   // Mapear nombres de estado del tracking a estados internos
   const trackingStatusMap = {
-    "Pedido recibido": "pending",
-    "Preparando pedido": "processing",
+    Pendiente: "pending",
+    Confirmado: "confirmed",
+    "En preparación": "processing",
     "En camino": "shipped",
     Entregado: "delivered",
+    "Listo para recoger": "ready_pickup",
+    "Esperando horario": "waiting_schedule",
   };
 
   // Actualizar los pasos anteriores como completados

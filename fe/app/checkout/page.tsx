@@ -258,6 +258,63 @@ export default function CheckoutPage() {
     }
   }, [beers, subscriptionPlans, loadingBeers, loadingSubscriptions]); // Ejecutar cuando los datos estén disponibles
 
+  // Manejar productos desde localStorage (para "volver a pedir" con múltiples productos)
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      !loadingBeers &&
+      !loadingSubscriptions
+    ) {
+      const pendingItems = localStorage.getItem("pendingCartItems");
+      if (pendingItems) {
+        try {
+          const cartItems = JSON.parse(pendingItems);
+
+          // Agregar cada producto al carrito
+          cartItems.forEach((item: any) => {
+            if (item.type === "beer") {
+              // Buscar la cerveza en los productos cargados
+              const beer = beers.find((b) => b.id === item.product.id);
+              if (beer) {
+                addToCart({
+                  id: beer.id,
+                  type: "beer",
+                  quantity: item.quantity || 1,
+                  product: beer,
+                });
+              }
+            } else if (item.type === "subscription") {
+              // Buscar la suscripción en los planes cargados
+              const subscription = subscriptionPlans.find(
+                (s) => s.id === item.product.id
+              );
+              if (subscription) {
+                addToCart({
+                  id: subscription.id,
+                  type: "subscription",
+                  quantity: 1, // Suscripciones siempre cantidad 1
+                  product: {
+                    ...subscription,
+                    beerType:
+                      item.product.beerType ||
+                      subscription.beerType ||
+                      "golden",
+                  },
+                });
+              }
+            }
+          });
+
+          // Limpiar localStorage después de procesar
+          localStorage.removeItem("pendingCartItems");
+        } catch (error) {
+          console.error("Error al procesar productos pendientes:", error);
+          localStorage.removeItem("pendingCartItems");
+        }
+      }
+    }
+  }, [beers, subscriptionPlans, loadingBeers, loadingSubscriptions]);
+
   // Verificar si debemos mostrar sugerencias de suscripción
   useEffect(() => {
     const hasSubscription = cart.some((item) => item.type === "subscription");

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMyOrders } from "@/services/private";
 import useFetchAndLoad from "@/hooks/useFetchAndLoad";
+import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +41,7 @@ import Link from "next/link";
 export default function UserOrdersPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const { loading: ordersLoading, callEndpoint } = useFetchAndLoad();
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
@@ -61,8 +63,24 @@ export default function UserOrdersPage() {
         try {
           const response = await callEndpoint(getMyOrders());
           if (response && response.data && response.data.data) {
-            setOrders(response.data.data.data);
-            setFilteredOrders(response.data.data.data);
+            // Filtrar solo pedidos de cerveza (excluir suscripciones)
+            const allOrders = response.data.data.data;
+            const beerOrders = allOrders.filter((order) => {
+              // Filtrar por tipo de orden o por productos
+              const isSubscription =
+                order.orderType?.toLowerCase().includes("suscripción") ||
+                order.orderType?.toLowerCase().includes("subscription") ||
+                (order.items &&
+                  order.items.some(
+                    (item) =>
+                      item.type?.toLowerCase().includes("suscripción") ||
+                      item.type?.toLowerCase().includes("subscription")
+                  ));
+              return !isSubscription;
+            });
+
+            setOrders(beerOrders);
+            setFilteredOrders(beerOrders);
           }
         } catch (error) {
           if (error.name !== "CanceledError" && error.name !== "AbortError") {
@@ -126,7 +144,17 @@ export default function UserOrdersPage() {
         return <Truck className="h-5 w-5 text-blue-600" />;
       case "processing":
       case "procesando":
+      case "en preparación":
         return <Package className="h-5 w-5 text-yellow-600" />;
+      case "confirmed":
+      case "confirmado":
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
+      case "ready_pickup":
+      case "listo para recoger":
+        return <Package className="h-5 w-5 text-orange-600" />;
+      case "waiting_schedule":
+      case "esperando horario":
+        return <Calendar className="h-5 w-5 text-cyan-600" />;
       case "pending":
       case "pendiente":
         return <Clock className="h-5 w-5 text-gray-600" />;
@@ -147,7 +175,17 @@ export default function UserOrdersPage() {
         return "bg-blue-50 border-blue-200 text-blue-800";
       case "processing":
       case "procesando":
+      case "en preparación":
         return "bg-yellow-50 border-yellow-200 text-yellow-800";
+      case "confirmed":
+      case "confirmado":
+        return "bg-green-50 border-green-200 text-green-800";
+      case "ready_pickup":
+      case "listo para recoger":
+        return "bg-orange-50 border-orange-200 text-orange-800";
+      case "waiting_schedule":
+      case "esperando horario":
+        return "bg-cyan-50 border-cyan-200 text-cyan-800";
       case "pending":
       case "pendiente":
         return "bg-gray-50 border-gray-200 text-gray-800";
@@ -168,7 +206,17 @@ export default function UserOrdersPage() {
         return "En Camino";
       case "processing":
       case "procesando":
-        return "Procesando";
+      case "en preparación":
+        return "En preparación";
+      case "confirmed":
+      case "confirmado":
+        return "Confirmado";
+      case "ready_pickup":
+      case "listo para recoger":
+        return "Listo para recoger";
+      case "waiting_schedule":
+      case "esperando horario":
+        return "Esperando horario";
       case "pending":
       case "pendiente":
         return "Pendiente";
@@ -189,7 +237,17 @@ export default function UserOrdersPage() {
         return "bg-blue-600";
       case "processing":
       case "procesando":
+      case "en preparación":
         return "bg-yellow-600";
+      case "confirmed":
+      case "confirmado":
+        return "bg-green-600";
+      case "ready_pickup":
+      case "listo para recoger":
+        return "bg-orange-600";
+      case "waiting_schedule":
+      case "esperando horario":
+        return "bg-cyan-600";
       case "pending":
       case "pendiente":
         return "bg-gray-600";
@@ -216,6 +274,302 @@ export default function UserOrdersPage() {
       month: "long",
       year: "numeric",
     });
+  };
+
+  // Funciones para la barra de progreso
+  const getOrderSteps = (orderType, paymentMethod) => {
+    // Para pedidos con recoger en tienda (cash)
+    if (
+      paymentMethod?.toLowerCase() === "cash" ||
+      paymentMethod?.toLowerCase() === "efectivo"
+    ) {
+      return [
+        {
+          key: "pending",
+          label: "Pedido realizado",
+          icon: <Clock className="h-4 w-4" />,
+        },
+        {
+          key: "confirmed",
+          label: "Confirmado",
+          icon: <CheckCircle className="h-4 w-4" />,
+        },
+        {
+          key: "processing",
+          label: "En preparación",
+          icon: <Package className="h-4 w-4" />,
+        },
+        {
+          key: "ready_pickup",
+          label: "Listo para recoger",
+          icon: <Package className="h-4 w-4" />,
+        },
+      ];
+    }
+
+    // Para pedidos con entrega programada
+    if (orderType?.includes("programado") || orderType?.includes("horario")) {
+      return [
+        {
+          key: "pending",
+          label: "Pedido realizado",
+          icon: <Clock className="h-4 w-4" />,
+        },
+        {
+          key: "confirmed",
+          label: "Pago confirmado",
+          icon: <CheckCircle className="h-4 w-4" />,
+        },
+        {
+          key: "waiting_schedule",
+          label: "Esperando horario",
+          icon: <Calendar className="h-4 w-4" />,
+        },
+        {
+          key: "processing",
+          label: "En preparación",
+          icon: <Package className="h-4 w-4" />,
+        },
+        {
+          key: "shipped",
+          label: "En camino",
+          icon: <Truck className="h-4 w-4" />,
+        },
+        {
+          key: "delivered",
+          label: "Entregado",
+          icon: <CheckCircle className="h-4 w-4" />,
+        },
+      ];
+    }
+
+    // Para pedidos normales con entrega
+    return [
+      {
+        key: "pending",
+        label: "Pedido realizado",
+        icon: <Clock className="h-4 w-4" />,
+      },
+      {
+        key: "confirmed",
+        label: "Pago confirmado",
+        icon: <CheckCircle className="h-4 w-4" />,
+      },
+      {
+        key: "processing",
+        label: "En preparación",
+        icon: <Package className="h-4 w-4" />,
+      },
+      {
+        key: "shipped",
+        label: "En camino",
+        icon: <Truck className="h-4 w-4" />,
+      },
+      {
+        key: "delivered",
+        label: "Entregado",
+        icon: <CheckCircle className="h-4 w-4" />,
+      },
+    ];
+  };
+
+  const getStepStatus = (stepKey, currentStatus) => {
+    const statusOrder = {
+      pending: 0,
+      confirmed: 1,
+      waiting_schedule: 2,
+      processing: 3,
+      shipped: 4,
+      delivered: 5,
+      ready_pickup: 4, // Para recoger en tienda
+      cancelled: -1,
+    };
+
+    const currentOrder = statusOrder[currentStatus?.toLowerCase()] || 0;
+    const stepOrder = statusOrder[stepKey] || 0;
+
+    if (currentStatus?.toLowerCase() === "cancelled") {
+      return stepOrder <= 0 ? "completed" : "cancelled";
+    }
+
+    if (stepOrder < currentOrder) return "completed";
+    if (stepOrder === currentOrder) return "current";
+    return "pending";
+  };
+
+  const getStepDescriptions = () => {
+    return {
+      pending: "Tu pedido ha sido recibido y está siendo procesado",
+      confirmed: "El pago ha sido confirmado y tu pedido está en cola",
+      waiting_schedule: "Esperando el horario de entrega programado",
+      processing: "Estamos preparando tu pedido con cuidado",
+      shipped: "Tu pedido está en camino hacia tu dirección",
+      delivered: "Tu pedido ha sido entregado exitosamente",
+      ready_pickup: "Tu pedido está listo para ser recogido en nuestra tienda",
+    };
+  };
+
+  const handleReorderProducts = (order) => {
+    try {
+      // Obtener los productos del pedido
+      const orderItems = order.items || [];
+
+      if (orderItems.length === 0) {
+        toast({
+          title: "Error",
+          description: "Este pedido no tiene productos para volver a pedir",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Si es un solo producto, redirigir con parámetros específicos
+      if (orderItems.length === 1) {
+        const item = orderItems[0];
+        const params = new URLSearchParams();
+
+        // Determinar el tipo de producto
+        if (
+          item.type?.toLowerCase().includes("subscription") ||
+          item.type?.toLowerCase().includes("suscripción")
+        ) {
+          params.set("product", item.productId || item.id);
+          params.set("type", "subscription");
+          if (item.beerType) {
+            params.set("beer-type", item.beerType);
+          }
+        } else {
+          // Es una cerveza
+          params.set("product", item.productId || item.id);
+          params.set("type", "beer");
+        }
+
+        // Redirigir al checkout con los parámetros
+        router.push(`/checkout?${params.toString()}`);
+        return;
+      }
+
+      // Para múltiples productos, usar localStorage como respaldo
+      // Crear productos para agregar al carrito
+      const cartItems = orderItems.map((item) => ({
+        id: item.productId || item.id,
+        type:
+          item.type?.toLowerCase().includes("subscription") ||
+          item.type?.toLowerCase().includes("suscripción")
+            ? "subscription"
+            : "beer",
+        quantity: item.quantity || 1,
+        product: {
+          id: item.productId || item.id,
+          name: item.name,
+          price: item.price,
+          type: item.type || "beer",
+          image: item.image || "/placeholder.jpg",
+          stock: 100, // Valor por defecto
+          ...(item.beerType && { beerType: item.beerType }),
+        },
+      }));
+
+      // Guardar en localStorage para que el checkout lo cargue
+      localStorage.setItem("pendingCartItems", JSON.stringify(cartItems));
+
+      // Mostrar mensaje de éxito
+      toast({
+        title: "Productos agregados",
+        description: `${orderItems.length} producto(s) agregado(s) al carrito`,
+      });
+
+      // Redirigir al carrito
+      router.push("/checkout");
+    } catch (error) {
+      console.error("Error al agregar productos al carrito:", error);
+      toast({
+        title: "Error",
+        description: "Error al agregar productos al carrito",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const renderProgressBar = (order) => {
+    // No mostrar barra de progreso para pedidos completados o cancelados
+    const status = order.status?.toLowerCase();
+    if (
+      status === "delivered" ||
+      status === "cancelled" ||
+      status === "entregado"
+    ) {
+      return null;
+    }
+
+    const steps = getOrderSteps(order.orderType, order.paymentMethod);
+
+    return (
+      <div className="w-full">
+        <div className="flex justify-between mb-2">
+          {steps.map((step, index) => {
+            const stepStatus = getStepStatus(step.key, order.status);
+            const isCompleted = stepStatus === "completed";
+            const isCurrent = stepStatus === "current";
+            const isCancelled = stepStatus === "cancelled";
+
+            return (
+              <div key={step.key} className="flex flex-col items-center flex-1">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors duration-300 ${
+                    isCancelled
+                      ? "bg-red-100 border-red-300 text-red-600"
+                      : isCompleted
+                      ? "bg-green-100 border-green-500 text-green-600"
+                      : isCurrent
+                      ? "bg-amber-100 border-amber-500 text-amber-600"
+                      : "bg-gray-100 border-gray-300 text-gray-400"
+                  }`}
+                >
+                  {step.icon}
+                </div>
+                <span
+                  className={`text-xs mt-1 text-center leading-tight ${
+                    isCancelled
+                      ? "text-red-600"
+                      : isCompleted || isCurrent
+                      ? "text-gray-900 font-medium"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Línea de progreso */}
+        <div className="relative mt-4">
+          <div className="absolute top-4 left-0 w-full h-0.5 bg-gray-200 -translate-y-1/2"></div>
+          <div
+            className={`absolute top-4 left-0 h-0.5 transition-all duration-500 -translate-y-1/2 ${
+              order.status?.toLowerCase() === "cancelled"
+                ? "bg-red-400"
+                : "bg-green-400"
+            }`}
+            style={{
+              width: `${
+                order.status?.toLowerCase() === "cancelled"
+                  ? 0
+                  : ((steps.findIndex(
+                      (step) =>
+                        getStepStatus(step.key, order.status) === "current"
+                    ) +
+                      1) /
+                      steps.length) *
+                    100
+              }%`,
+            }}
+          ></div>
+        </div>
+      </div>
+    );
   };
 
   const openOrderDetails = (order) => {
@@ -251,12 +605,22 @@ export default function UserOrdersPage() {
       ).length,
     },
     {
+      value: "confirmed",
+      label: "Confirmados",
+      count: (orders ?? []).filter(
+        (o) =>
+          o.status?.toLowerCase() === "confirmed" ||
+          o.status?.toLowerCase() === "confirmado"
+      ).length,
+    },
+    {
       value: "processing",
-      label: "Procesando",
+      label: "En preparación",
       count: (orders ?? []).filter(
         (o) =>
           o.status?.toLowerCase() === "processing" ||
-          o.status?.toLowerCase() === "procesando"
+          o.status?.toLowerCase() === "procesando" ||
+          o.status?.toLowerCase() === "en preparación"
       ).length,
     },
     {
@@ -268,6 +632,24 @@ export default function UserOrdersPage() {
           o.status?.toLowerCase() === "shipping" ||
           o.status?.toLowerCase() === "en camino" ||
           o.status?.toLowerCase() === "enviado"
+      ).length,
+    },
+    {
+      value: "ready_pickup",
+      label: "Listo para recoger",
+      count: (orders ?? []).filter(
+        (o) =>
+          o.status?.toLowerCase() === "ready_pickup" ||
+          o.status?.toLowerCase() === "listo para recoger"
+      ).length,
+    },
+    {
+      value: "waiting_schedule",
+      label: "Esperando horario",
+      count: (orders ?? []).filter(
+        (o) =>
+          o.status?.toLowerCase() === "waiting_schedule" ||
+          o.status?.toLowerCase() === "esperando horario"
       ).length,
     },
     {
@@ -298,9 +680,11 @@ export default function UserOrdersPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Mis Pedidos</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Mis Pedidos de Cerveza
+              </h1>
               <p className="text-gray-600">
-                Gestiona y revisa el historial de todos tus pedidos
+                Gestiona y revisa el historial de todos tus pedidos de cerveza
               </p>
             </div>
           </div>
@@ -467,6 +851,63 @@ export default function UserOrdersPage() {
                         </Badge>
                       </div>
 
+                      {/* Mini barra de progreso */}
+                      <div className="mb-3">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>Progreso del pedido</span>
+                          <span>
+                            {(() => {
+                              const steps = getOrderSteps(
+                                order.orderType,
+                                order.paymentMethod
+                              );
+                              const currentIndex = steps.findIndex(
+                                (step) =>
+                                  getStepStatus(step.key, order.status) ===
+                                  "current"
+                              );
+                              const completedSteps =
+                                currentIndex === -1
+                                  ? steps.length
+                                  : currentIndex + 1;
+                              return `${completedSteps}/${steps.length}`;
+                            })()}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${
+                              order.status?.toLowerCase() === "cancelled"
+                                ? "bg-red-400"
+                                : order.status?.toLowerCase() === "delivered" ||
+                                  order.status?.toLowerCase() === "entregado"
+                                ? "bg-green-500"
+                                : "bg-amber-500"
+                            }`}
+                            style={{
+                              width: `${(() => {
+                                if (order.status?.toLowerCase() === "cancelled")
+                                  return 0;
+                                const steps = getOrderSteps(
+                                  order.orderType,
+                                  order.paymentMethod
+                                );
+                                const currentIndex = steps.findIndex(
+                                  (step) =>
+                                    getStepStatus(step.key, order.status) ===
+                                    "current"
+                                );
+                                const completedSteps =
+                                  currentIndex === -1
+                                    ? steps.length
+                                    : currentIndex + 1;
+                                return (completedSteps / steps.length) * 100;
+                              })()}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+
                       {/* Order Details */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                         <div className="flex items-center gap-2">
@@ -538,6 +979,7 @@ export default function UserOrdersPage() {
                           variant="outline"
                           size="sm"
                           className="border-green-300 hover:bg-green-50 text-green-700"
+                          onClick={() => handleReorderProducts(order)}
                         >
                           Volver a Pedir
                         </Button>
@@ -554,15 +996,15 @@ export default function UserOrdersPage() {
               <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 {statusFilter === "all"
-                  ? "No tienes pedidos aún"
-                  : `No tienes pedidos ${statusOptions
+                  ? "No tienes pedidos de cerveza aún"
+                  : `No tienes pedidos de cerveza ${statusOptions
                       .find((o) => o.value === statusFilter)
                       ?.label.toLowerCase()}`}
               </h3>
               <p className="text-gray-600 mb-6">
                 {statusFilter === "all"
-                  ? "¡Explora nuestros productos y haz tu primer pedido!"
-                  : "Prueba con un filtro diferente o explora nuestros productos."}
+                  ? "¡Explora nuestras cervezas y haz tu primer pedido!"
+                  : "Prueba con un filtro diferente o explora nuestras cervezas."}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 {statusFilter !== "all" && (
@@ -571,12 +1013,12 @@ export default function UserOrdersPage() {
                     onClick={() => setStatusFilter("all")}
                     className="border-amber-300 hover:bg-amber-50"
                   >
-                    Ver todos los pedidos
+                    Ver todos los pedidos de cerveza
                   </Button>
                 )}
                 <Link href="/productos">
                   <Button className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white">
-                    Explorar Productos
+                    Explorar Cervezas
                   </Button>
                 </Link>
               </div>
@@ -636,6 +1078,33 @@ export default function UserOrdersPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Barra de Progreso del Pedido */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Progreso del Pedido
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {renderProgressBar(selectedOrder)}
+
+                  {/* Descripción del estado actual */}
+                  {selectedOrder.status && (
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <h4 className="font-medium text-amber-800 mb-1">
+                        Estado actual:
+                      </h4>
+                      <p className="text-sm text-amber-700">
+                        {getStepDescriptions()[
+                          selectedOrder.status?.toLowerCase()
+                        ] || "Estado del pedido en proceso"}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Información de Entrega */}
               {selectedOrder.shippingInfo && (
@@ -808,7 +1277,10 @@ export default function UserOrdersPage() {
                 </Button>
                 {(selectedOrder.status?.toLowerCase() === "delivered" ||
                   selectedOrder.status?.toLowerCase() === "entregado") && (
-                  <Button className="flex-1 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white">
+                  <Button
+                    className="flex-1 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white"
+                    onClick={() => handleReorderProducts(selectedOrder)}
+                  >
                     Volver a Pedir
                   </Button>
                 )}

@@ -75,7 +75,15 @@ interface Order {
     userId?: string;
   };
   date: string;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  status:
+    | "pending"
+    | "confirmed"
+    | "processing"
+    | "shipped"
+    | "delivered"
+    | "cancelled"
+    | "ready_pickup"
+    | "waiting_schedule";
   total: number;
   items: OrderItem[];
   paymentMethod: string;
@@ -297,12 +305,18 @@ export default function VentasPage() {
           description: `El pedido ${orderId} ha sido actualizado a "${
             newStatus === "pending"
               ? "Pendiente"
+              : newStatus === "confirmed"
+              ? "Confirmado"
               : newStatus === "processing"
-              ? "Procesando"
+              ? "En preparación"
               : newStatus === "shipped"
-              ? "Enviado"
+              ? "En camino"
               : newStatus === "delivered"
               ? "Entregado"
+              : newStatus === "ready_pickup"
+              ? "Listo para recoger"
+              : newStatus === "waiting_schedule"
+              ? "Esperando horario"
               : "Cancelado"
           }"`,
         });
@@ -355,13 +369,22 @@ export default function VentasPage() {
             Pendiente
           </Badge>
         );
+      case "confirmed":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-green-50 text-green-700 hover:bg-green-50"
+          >
+            Confirmado
+          </Badge>
+        );
       case "processing":
         return (
           <Badge
             variant="outline"
             className="bg-blue-50 text-blue-700 hover:bg-blue-50"
           >
-            Procesando
+            En preparación
           </Badge>
         );
       case "shipped":
@@ -370,7 +393,7 @@ export default function VentasPage() {
             variant="outline"
             className="bg-purple-50 text-purple-700 hover:bg-purple-50"
           >
-            Enviado
+            En camino
           </Badge>
         );
       case "delivered":
@@ -380,6 +403,24 @@ export default function VentasPage() {
             className="bg-green-50 text-green-700 hover:bg-green-50"
           >
             Entregado
+          </Badge>
+        );
+      case "ready_pickup":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-orange-50 text-orange-700 hover:bg-orange-50"
+          >
+            Listo para recoger
+          </Badge>
+        );
+      case "waiting_schedule":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-cyan-50 text-cyan-700 hover:bg-cyan-50"
+          >
+            Esperando horario
           </Badge>
         );
       case "cancelled":
@@ -647,9 +688,14 @@ export default function VentasPage() {
             <SelectContent>
               <SelectItem value="all">Todos los estados</SelectItem>
               <SelectItem value="pending">Pendiente</SelectItem>
-              <SelectItem value="processing">Procesando</SelectItem>
-              <SelectItem value="shipped">Enviado</SelectItem>
+              <SelectItem value="confirmed">Confirmado</SelectItem>
+              <SelectItem value="processing">En preparación</SelectItem>
+              <SelectItem value="shipped">En camino</SelectItem>
               <SelectItem value="delivered">Entregado</SelectItem>
+              <SelectItem value="ready_pickup">Listo para recoger</SelectItem>
+              <SelectItem value="waiting_schedule">
+                Esperando horario
+              </SelectItem>
               <SelectItem value="cancelled">Cancelado</SelectItem>
             </SelectContent>
           </Select>
@@ -775,9 +821,18 @@ export default function VentasPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="pending">Pendiente</SelectItem>
-                          <SelectItem value="processing">Procesando</SelectItem>
-                          <SelectItem value="shipped">Enviado</SelectItem>
+                          <SelectItem value="confirmed">Confirmado</SelectItem>
+                          <SelectItem value="processing">
+                            En preparación
+                          </SelectItem>
+                          <SelectItem value="shipped">En camino</SelectItem>
                           <SelectItem value="delivered">Entregado</SelectItem>
+                          <SelectItem value="ready_pickup">
+                            Listo para recoger
+                          </SelectItem>
+                          <SelectItem value="waiting_schedule">
+                            Esperando horario
+                          </SelectItem>
                           <SelectItem value="cancelled">Cancelado</SelectItem>
                         </SelectContent>
                       </Select>
