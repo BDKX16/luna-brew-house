@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getUserSubscriptions } from "@/services/public";
 import UserSubscriptionsTable from "@/components/profile/UserSubscriptionsTable";
 import LoadingSpinner from "@/components/ui/loading-spinner";
+import ProfileHeader from "@/components/profile/ProfileHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import useFetchAndLoad from "@/hooks/useFetchAndLoad";
@@ -71,23 +72,32 @@ export default function UserSubscriptionsPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 px-4">
-      <h1 className="text-2xl font-bold mb-6">Mis Suscripciones</h1>
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
+      {/* Header */}
+      <ProfileHeader
+        title="Mis Suscripciones"
+        subtitle="Gestiona y revisa todas tus suscripciones activas"
+        backUrl="/perfil"
+        backLabel="Volver al Perfil"
+      />
 
-      {subscriptions.length === 0 ? (
-        <div className="text-center py-10">
-          <h2 className="text-xl mb-2">No tienes suscripciones activas</h2>
-          <p className="mb-6">
-            Explora nuestros planes de suscripción y disfruta de cervezas
-            artesanales cada mes
-          </p>
-          <Link href="/suscripciones">
-            <Button>Ver planes de suscripción</Button>
-          </Link>
-        </div>
-      ) : (
-        <UserSubscriptionsTable subscriptions={subscriptions} />
-      )}
+      {/* Content */}
+      <div className="container py-8">
+        {subscriptions.length === 0 ? (
+          <div className="text-center py-10">
+            <h2 className="text-xl mb-2">No tienes suscripciones activas</h2>
+            <p className="mb-6">
+              Explora nuestros planes de suscripción y disfruta de cervezas
+              artesanales cada mes
+            </p>
+            <Link href="/suscripciones">
+              <Button>Ver planes de suscripción</Button>
+            </Link>
+          </div>
+        ) : (
+          <UserSubscriptionsTable subscriptions={subscriptions} />
+        )}
+      </div>
     </div>
   );
 }

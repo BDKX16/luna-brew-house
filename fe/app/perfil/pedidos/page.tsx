@@ -7,6 +7,7 @@ import { getMyOrders } from "@/services/private";
 import useFetchAndLoad from "@/hooks/useFetchAndLoad";
 import { useToast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/ui/loading-spinner";
+import ProfileHeader from "@/components/profile/ProfileHeader";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,7 +26,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  ArrowLeft,
   Package,
   CheckCircle,
   Truck,
@@ -715,30 +715,12 @@ export default function UserOrdersPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-amber-200">
-        <div className="container py-6">
-          <div className="flex items-center gap-4">
-            <Link href="/perfil">
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-amber-300 hover:bg-amber-50"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Volver al Perfil
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Mis Pedidos de Cerveza
-              </h1>
-              <p className="text-gray-600">
-                Gestiona y revisa el historial de todos tus pedidos de cerveza
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ProfileHeader
+        title="Mis Pedidos de Cerveza"
+        subtitle="Gestiona y revisa el historial de todos tus pedidos de cerveza"
+        backUrl="/perfil"
+        backLabel="Volver al Perfil"
+      />
 
       {/* Content */}
       <div className="container py-8">
