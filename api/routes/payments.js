@@ -155,7 +155,8 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
         {
           status: "Pedido recibido",
           date: new Date(),
-          description: "Tu pedido ha sido recibido y está siendo procesado",
+          description:
+            "Tu pedido ha sido recibido y está siendo procesado, te avisaremos cuando se haya acreditado el pago, no te preocupes",
         },
       ],
       nullDate: null,

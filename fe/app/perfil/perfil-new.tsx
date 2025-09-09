@@ -588,7 +588,7 @@ export default function ProfilePage() {
           </Card>
 
           {/* Mis Pedidos */}
-          <Card className="bg-white/70 backdrop-blur-sm border-amber-200 shadow-lg hover:shadow-xl transition-all duration-300">
+          <Card className="bg-white/70 backdrop-blur-sm border-amber-200 shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col h-full">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-purple-100 rounded-lg">
@@ -602,8 +602,8 @@ export default function ProfilePage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="flex-1 flex flex-col">
+              <div className="flex-1 space-y-4">
                 <p className="text-gray-600">
                   Consulta el estado e historial de todos tus pedidos de
                   cerveza.
@@ -821,50 +821,97 @@ export default function ProfilePage() {
                           }).format(price);
                         };
 
+                        const isDeliveryToday = (order) => {
+                          if (!order.deliveryTime?.date) return false;
+
+                          const today = new Date();
+                          const todayDay = today.getDate();
+                          const todayMonth = today.toLocaleDateString("es-ES", {
+                            month: "long",
+                          });
+
+                          // Convertir el deliveryTime.date a formato comparable
+                          const deliveryDate =
+                            order.deliveryTime.date.toLowerCase();
+
+                          // Crear string de hoy en formato similar: "10 septiembre"
+                          const todayString =
+                            `${todayDay} ${todayMonth}`.toLowerCase();
+
+                          return deliveryDate === todayString;
+                        };
+
                         return (
                           <div
                             key={order._id}
-                            className={`flex items-center justify-between p-3 rounded-lg border ${getStatusColor(
-                              order.status
-                            )}`}
+                            className={`flex items-center justify-between p-3 rounded-lg border ${
+                              isDeliveryToday(order)
+                                ? "bg-blue-50 border-blue-200"
+                                : getStatusColor(order.status)
+                            }`}
                           >
                             <div className="flex items-center gap-3">
-                              {getStatusIcon(order.status)}
+                              {isDeliveryToday(order) ? (
+                                <div className="p-1 bg-blue-100 rounded-full">
+                                  <Truck className="h-4 w-4 text-blue-600" />
+                                </div>
+                              ) : (
+                                getStatusIcon(order.status)
+                              )}
                               <div>
                                 <p
-                                  className={`font-medium ${getStatusTextColor(
-                                    order.status
-                                  )}`}
+                                  className={`font-medium ${
+                                    isDeliveryToday(order)
+                                      ? "text-blue-800"
+                                      : getStatusTextColor(order.status)
+                                  }`}
                                 >
                                   Pedido {formatOrderId(order._id)}
                                 </p>
                                 <p
-                                  className={`text-sm ${getStatusTextColor(
-                                    order.status
-                                  ).replace("800", "600")}`}
+                                  className={`text-sm ${
+                                    isDeliveryToday(order)
+                                      ? "text-blue-600"
+                                      : getStatusTextColor(
+                                          order.status
+                                        ).replace("800", "600")
+                                  }`}
                                 >
-                                  {getStatusText(order.status)}
+                                  {isDeliveryToday(order)
+                                    ? "¡Llega hoy!"
+                                    : getStatusText(order.status)}
+                                  {isDeliveryToday(order) &&
+                                    order.deliveryTime?.timeRange && (
+                                      <span className="block text-xs text-blue-500">
+                                        {order.deliveryTime.timeRange}
+                                      </span>
+                                    )}
                                 </p>
                               </div>
                             </div>
                             <Badge
                               variant="outline"
-                              className={`border-${
-                                getStatusColor(order.status).includes("green")
-                                  ? "green"
-                                  : getStatusColor(order.status).includes(
-                                      "blue"
-                                    )
-                                  ? "blue"
-                                  : getStatusColor(order.status).includes(
-                                      "yellow"
-                                    )
-                                  ? "yellow"
-                                  : "gray"
-                              }-300 ${getStatusTextColor(order.status).replace(
-                                "800",
-                                "700"
-                              )}`}
+                              className={`${
+                                isDeliveryToday(order)
+                                  ? "border-blue-300 text-blue-700 bg-blue-50"
+                                  : `border-${
+                                      getStatusColor(order.status).includes(
+                                        "green"
+                                      )
+                                        ? "green"
+                                        : getStatusColor(order.status).includes(
+                                            "blue"
+                                          )
+                                        ? "blue"
+                                        : getStatusColor(order.status).includes(
+                                            "yellow"
+                                          )
+                                        ? "yellow"
+                                        : "gray"
+                                    }-300 ${getStatusTextColor(
+                                      order.status
+                                    ).replace("800", "700")}`
+                              }`}
                             >
                               {formatPrice(order.total || 0)}
                             </Badge>
@@ -884,7 +931,10 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 )}
+              </div>
 
+              {/* Botón pegado al fondo del card */}
+              <div className="mt-4">
                 <Link href="/perfil/pedidos">
                   <Button
                     variant="outline"

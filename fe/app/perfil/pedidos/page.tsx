@@ -96,25 +96,51 @@ export default function UserOrdersPage() {
   useEffect(() => {
     // Filter orders based on status
     const ordersArray = orders ?? [];
+    const activeShippingOrder = getActiveShippingOrder();
+
     if (statusFilter === "all") {
-      setFilteredOrders(ordersArray);
+      // Si hay un pedido en camino mostrado en el card especial, excluirlo de la lista
+      if (activeShippingOrder) {
+        setFilteredOrders(
+          ordersArray.filter((order) => order._id !== activeShippingOrder._id)
+        );
+      } else {
+        setFilteredOrders(ordersArray);
+      }
     } else if (statusFilter === "shipping") {
       // Filtro especial para "En camino" que incluye múltiples estados
-      setFilteredOrders(
-        ordersArray.filter(
-          (order) =>
-            order.status?.toLowerCase() === "shipped" ||
-            order.status?.toLowerCase() === "shipping" ||
-            order.status?.toLowerCase() === "en camino" ||
-            order.status?.toLowerCase() === "enviado"
-        )
+      const shippingOrders = ordersArray.filter(
+        (order) =>
+          order.status?.toLowerCase() === "shipped" ||
+          order.status?.toLowerCase() === "shipping" ||
+          order.status?.toLowerCase() === "en camino" ||
+          order.status?.toLowerCase() === "enviado"
       );
+      // Si hay un pedido activo en el card, excluirlo de esta lista también
+      if (activeShippingOrder) {
+        setFilteredOrders(
+          shippingOrders.filter(
+            (order) => order._id !== activeShippingOrder._id
+          )
+        );
+      } else {
+        setFilteredOrders(shippingOrders);
+      }
     } else {
-      setFilteredOrders(
-        ordersArray.filter(
-          (order) => order.status?.toLowerCase() === statusFilter.toLowerCase()
-        )
+      const filtered = ordersArray.filter(
+        (order) => order.status?.toLowerCase() === statusFilter.toLowerCase()
       );
+      // Si hay un pedido activo en el card y coincide con el filtro, excluirlo
+      if (
+        activeShippingOrder &&
+        activeShippingOrder.status?.toLowerCase() === statusFilter.toLowerCase()
+      ) {
+        setFilteredOrders(
+          filtered.filter((order) => order._id !== activeShippingOrder._id)
+        );
+      } else {
+        setFilteredOrders(filtered);
+      }
     }
   }, [orders, statusFilter]);
 
@@ -399,7 +425,8 @@ export default function UserOrdersPage() {
 
   const getStepDescriptions = () => {
     return {
-      pending: "Tu pedido ha sido recibido y está siendo procesado",
+      pending:
+        "Tu pedido ha sido recibido y está siendo procesado, te avisaremos cuando se haya acreditado el pago, no te preocupes",
       confirmed: "El pago ha sido confirmado y tu pedido está en cola",
       waiting_schedule: "Esperando el horario de entrega programado",
       processing: "Estamos preparando tu pedido con cuidado",
@@ -591,6 +618,28 @@ export default function UserOrdersPage() {
         order.status?.toLowerCase() === "en camino" ||
         order.status?.toLowerCase() === "enviado"
     );
+  };
+
+  // Función para calcular rango horario de entrega
+  const getDeliveryTimeRange = (order) => {
+    if (order.deliveryTime?.timeRange) {
+      return order.deliveryTime.timeRange;
+    }
+
+    // Si no hay timeRange específico, calcularlo basado en la hora del pedido
+    const orderDate = new Date(order.date);
+    const orderHour = orderDate.getHours();
+
+    // Agregar 2 horas para el rango de entrega
+    const startHour = orderHour;
+    const endHour = orderHour + 2;
+
+    const formatHour = (hour) => {
+      const adjustedHour = hour > 23 ? hour - 24 : hour;
+      return `${adjustedHour.toString().padStart(2, "0")}:00`;
+    };
+
+    return `${formatHour(startHour)} - ${formatHour(endHour)}`;
   };
 
   const statusOptions = [
@@ -795,22 +844,62 @@ export default function UserOrdersPage() {
                     <span>Entregado</span>
                   </div>
                 </div>
+              </div>
 
-                {/* Información adicional */}
-                <div className="mt-4 p-3 bg-white/50 rounded-lg">
-                  <div className="flex items-center gap-2 text-sm text-blue-800">
-                    <Clock className="h-4 w-4" />
-                    <span className="font-medium">
-                      Tiempo estimado de entrega:
-                    </span>
-                    <span>24-48 horas</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-blue-700 mt-1">
-                    <MapPin className="h-4 w-4" />
-                    <span>Tu pedido llegará pronto a tu dirección</span>
-                  </div>
+              {/* Información de tiempo de entrega */}
+              <div className="mt-4 p-4 bg-white/60 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 text-sm text-blue-800 mb-2">
+                  <Clock className="h-4 w-4" />
+                  <span className="font-semibold">
+                    Tiempo estimado de entrega:
+                  </span>
+                  <span className="font-bold text-blue-900">
+                    {getDeliveryTimeRange(getActiveShippingOrder())}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-blue-700">
+                  <MapPin className="h-4 w-4" />
+                  <span>
+                    Tu pedido llegará pronto a{" "}
+                    {getActiveShippingOrder().shippingAddress ||
+                      getActiveShippingOrder().shippingInfo?.address ||
+                      "tu dirección registrada"}
+                  </span>
                 </div>
               </div>
+
+              {/* Información de productos si está disponible */}
+              {getActiveShippingOrder().products &&
+                getActiveShippingOrder().products.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <div className="text-sm font-medium text-blue-800 mb-2">
+                      Productos en este pedido:
+                    </div>
+                    <div className="space-y-1">
+                      {getActiveShippingOrder()
+                        .products.slice(0, 3)
+                        .map((product, index) => (
+                          <div
+                            key={index}
+                            className="text-blue-700 text-sm flex justify-between"
+                          >
+                            <span>
+                              {product.quantity}x {product.name}
+                            </span>
+                            <span className="font-medium">
+                              {formatPrice(product.price * product.quantity)}
+                            </span>
+                          </div>
+                        ))}
+                      {getActiveShippingOrder().products.length > 3 && (
+                        <div className="text-blue-600 text-sm font-medium">
+                          y {getActiveShippingOrder().products.length - 3}{" "}
+                          productos más...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
             </CardContent>
           </Card>
         )}
@@ -1092,7 +1181,7 @@ export default function UserOrdersPage() {
 
                   {/* Descripción del estado actual */}
                   {selectedOrder.status && (
-                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="mt-14 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <h4 className="font-medium text-amber-800 mb-1">
                         Estado actual:
                       </h4>
