@@ -966,7 +966,7 @@ router.post("/payments/webhook", async (req, res) => {
                 if (subscription) {
                   // Verificar si ya existe una suscripción activa para este usuario y plan
                   const existingSubscription = await UserSubscription.findOne({
-                    userId: order.userId,
+                    userId: order.customer.userId,
                     subscriptionId: item.id,
                     status: "active",
                     nullDate: null,
@@ -975,8 +975,8 @@ router.post("/payments/webhook", async (req, res) => {
                   if (!existingSubscription) {
                     // Crear nueva suscripción
                     const newSubscription = new UserSubscription({
-                      id: `sub_${Date.now()}_${order.userId}`,
-                      userId: order.userId,
+                      id: `sub_${Date.now()}_${order.customer.userId}`,
+                      userId: order.customer.userId,
                       subscriptionId: item.id,
                       name: subscription.name,
                       beerType: subscription.beerType || "golden", // Valor por defecto
@@ -998,11 +998,11 @@ router.post("/payments/webhook", async (req, res) => {
 
                     await newSubscription.save();
                     console.log(
-                      `✅ Suscripción creada para usuario ${order.userId}: ${subscription.name}`
+                      `✅ Suscripción creada para usuario ${order.customer.userId}: ${subscription.name}`
                     );
                   } else {
                     console.log(
-                      `⚠️ Suscripción ya existe para usuario ${order.userId}: ${subscription.name}`
+                      `⚠️ Suscripción ya existe para usuario ${order.customer.userId}: ${subscription.name}`
                     );
                   }
                 } else {
@@ -1061,7 +1061,7 @@ router.post("/payments/webhook", async (req, res) => {
                     // Verificar si ya existe una suscripción activa
                     const existingSubscription = await UserSubscription.findOne(
                       {
-                        userId: orderByField.userId,
+                        userId: orderByField.customer.userId,
                         subscriptionId: item.id,
                         status: "active",
                         nullDate: null,
@@ -1071,8 +1071,8 @@ router.post("/payments/webhook", async (req, res) => {
                     if (!existingSubscription) {
                       // Crear nueva suscripción
                       const newSubscription = new UserSubscription({
-                        id: `sub_${Date.now()}_${orderByField.userId}`,
-                        userId: orderByField.userId,
+                        id: `sub_${Date.now()}_${orderByField.customer.userId}`,
+                        userId: orderByField.customer.userId,
                         subscriptionId: item.id,
                         name: subscription.name,
                         beerType: subscription.beerType || "golden",
@@ -1094,7 +1094,7 @@ router.post("/payments/webhook", async (req, res) => {
 
                       await newSubscription.save();
                       console.log(
-                        `✅ Suscripción creada (búsqueda alt) para usuario ${orderByField.userId}: ${subscription.name}`
+                        `✅ Suscripción creada (búsqueda alt) para usuario ${orderByField.customer.userId}: ${subscription.name}`
                       );
                     }
                   }
