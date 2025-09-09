@@ -653,4 +653,183 @@ router.post("/subscriptions", checkAuth, async (req, res) => {
   }
 });
 
+/**
+ * RUTAS PARA ADMINISTRACIÓN DE SUSCRIPCIONES (ADMIN ONLY)
+ */
+
+// Obtener todas las suscripciones (admin)
+router.get("/admin/all", checkAuth, checkRole("admin"), async (req, res) => {
+  try {
+    const { status, userId, page = 1, limit = 50 } = req.query;
+
+    // Construir filtros
+    const filters = { nullDate: null };
+    if (status) filters.status = status;
+    if (userId) filters.userId = userId;
+
+    // Paginación
+    const skip = (page - 1) * limit;
+
+    const subscriptions = await UserSubscription.find(filters)
+      .populate("userId", "name email phone address")
+      .sort({ startDate: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await UserSubscription.countDocuments(filters);
+
+    // Transformar datos para el frontend
+    const transformedSubscriptions = subscriptions.map((sub) => ({
+      _id: sub._id,
+      userId: sub.userId._id,
+      user: {
+        name: sub.userId.name,
+        email: sub.userId.email,
+        phone: sub.userId.phone,
+      },
+      planId: sub.subscriptionId,
+      planName: sub.name,
+      planType: "monthly", // Asumiendo mensual por defecto
+      startDate: sub.startDate,
+      endDate: null, // Calcular basado en el tipo de plan si es necesario
+      status: sub.status,
+      price: sub.price,
+      deliveryFrequency: 30, // Asumiendo 30 días
+      nextDelivery: sub.nextDelivery,
+      deliveryAddress: sub.userId.address || "Sin dirección",
+      createdAt: sub.startDate,
+      updatedAt: sub.startDate,
+    }));
+
+    res.status(200).json({
+      status: "success",
+      data: transformedSubscriptions,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error al obtener suscripciones admin:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Error al obtener las suscripciones",
+      error: error.message,
+    });
+  }
+});
+
+// Actualizar estado de una suscripción (admin)
+router.put(
+  "/admin/:id/status",
+  checkAuth,
+  checkRole("admin"),
+  async (req, res) => {
+    try {
+      const subscriptionId = req.params.id;
+      const { status } = req.body;
+
+      // Validar estado
+      const validStatuses = ["active", "paused", "cancelled"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Estado inválido",
+        });
+      }
+
+      const subscription = await UserSubscription.findByIdAndUpdate(
+        subscriptionId,
+        { status },
+        { new: true }
+      ).populate("userId", "name email phone");
+
+      if (!subscription) {
+        return res.status(404).json({
+          status: "error",
+          message: "Suscripción no encontrada",
+        });
+      }
+
+      res.status(200).json({
+        status: "success",
+        message: "Estado de suscripción actualizado",
+        data: subscription,
+      });
+    } catch (error) {
+      console.error("Error al actualizar estado de suscripción:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Error al actualizar el estado de la suscripción",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// Eliminar una suscripción (admin) - soft delete
+router.delete("/admin/:id", checkAuth, checkRole("admin"), async (req, res) => {
+  try {
+    const subscriptionId = req.params.id;
+
+    const subscription = await UserSubscription.findByIdAndUpdate(
+      subscriptionId,
+      { nullDate: new Date() },
+      { new: true }
+    );
+
+    if (!subscription) {
+      return res.status(404).json({
+        status: "error",
+        message: "Suscripción no encontrada",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Suscripción eliminada correctamente",
+    });
+  } catch (error) {
+    console.error("Error al eliminar suscripción:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Error al eliminar la suscripción",
+      error: error.message,
+    });
+  }
+});
+
+// Obtener suscripciones de un usuario específico (admin)
+router.get(
+  "/admin/user/:userId",
+  checkAuth,
+  checkRole("admin"),
+  async (req, res) => {
+    try {
+      const userId = req.params.userId;
+
+      const subscriptions = await UserSubscription.find({
+        userId,
+        nullDate: null,
+      })
+        .populate("userId", "name email phone")
+        .sort({ startDate: -1 });
+
+      res.status(200).json({
+        status: "success",
+        data: subscriptions,
+      });
+    } catch (error) {
+      console.error("Error al obtener suscripciones del usuario:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Error al obtener las suscripciones del usuario",
+        error: error.message,
+      });
+    }
+  }
+);
+
 module.exports = router;

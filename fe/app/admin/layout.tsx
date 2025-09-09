@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu,
   TicketPercent,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -29,6 +30,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
     { href: "/admin/productos", label: "Productos", icon: Beer },
     { href: "/admin/ventas", label: "Ventas y Pedidos", icon: ShoppingCart },
+    { href: "/admin/suscripciones", label: "Suscripciones", icon: Calendar },
     { href: "/admin/promociones", label: "Promociones", icon: TicketPercent },
     { href: "/admin/recetas", label: "Recetas", icon: ChefHat },
     { href: "/admin/configuracion", label: "Configuración", icon: Settings },

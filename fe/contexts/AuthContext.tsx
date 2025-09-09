@@ -16,6 +16,7 @@ interface AuthContextType {
     password: string
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  updateUser: (userData: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -129,6 +130,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     router.push("/auth/login");
   };
 
+  const updateUser = (userData: any) => {
+    const currentToken = localStorage.getItem("token");
+
+    // Actualizar localStorage
+    localStorage.setItem("userData", JSON.stringify(userData));
+
+    // Actualizar estado local
+    setUserState(userData);
+
+    // Actualizar Redux
+    dispatch(setUser({ ...userData, token: currentToken }));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -137,6 +151,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isLoading,
         login,
         logout,
+        updateUser,
       }}
     >
       {isLoading ? <div>Cargando...</div> : children}

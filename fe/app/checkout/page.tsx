@@ -60,6 +60,7 @@ import {
 import {
   createMercadoPagoPreference,
   processDirectPayment,
+  updateUserProfile,
 } from "@/services/private";
 import MercadoPagoOptions from "@/components/checkout/MercadoPagoOptions";
 import LoadingSpinner from "@/components/ui/loading-spinner";
@@ -140,7 +141,7 @@ export default function CheckoutPage() {
   const [savingAddress, setSavingAddress] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, updateUser } = useAuth();
   const { callEndpoint } = useFetchAndLoad();
 
   // Definir los precios de los tipos de cerveza
@@ -698,28 +699,44 @@ export default function CheckoutPage() {
     setSavingAddress(true);
 
     try {
-      // Aquí puedes agregar la llamada al API para actualizar el perfil del usuario
-      // await updateUserProfile({ phone: modalPhone, address: modalAddress });
+      // Llamar al API para actualizar el perfil del usuario
+      const updateResult = await callEndpoint(
+        updateUserProfile({
+          phone: modalPhone.trim(),
+          address: modalAddress.trim(),
+        })
+      );
 
-      // Actualizar el estado local
-      setDeliveryAddress(modalAddress);
-      setHasValidAddress(true);
+      if (updateResult.status === 200 && updateResult.data) {
+        // Actualizar el contexto de autenticación con los nuevos datos
+        const updatedUserData = updateResult.data.data;
+        updateUser(updatedUserData);
 
-      // Cerrar modal
-      setShowAddressModal(false);
-      setModalErrors({ phone: "", address: "" });
+        // Actualizar el estado local
+        setDeliveryAddress(modalAddress.trim());
+        setHasValidAddress(true);
 
-      toast({
-        title: "Dirección guardada",
-        description: "Tu información de entrega ha sido actualizada",
-      });
+        // Cerrar modal
+        setShowAddressModal(false);
+        setModalErrors({ phone: "", address: "" });
 
-      // Proceder al checkout
-      setCheckoutStep("payment");
+        toast({
+          title: "Dirección guardada",
+          description:
+            "Tu información de entrega ha sido actualizada correctamente",
+        });
+
+        // Proceder al checkout
+        setCheckoutStep("payment");
+      } else {
+        throw new Error("Error al actualizar el perfil");
+      }
     } catch (error) {
+      console.error("Error saving address:", error);
       toast({
-        title: "Error",
-        description: "No se pudo guardar la dirección. Intenta nuevamente.",
+        title: "Error al guardar",
+        description:
+          "No se pudo guardar la dirección. Verifica tu conexión e intenta nuevamente.",
         variant: "destructive",
       });
     } finally {

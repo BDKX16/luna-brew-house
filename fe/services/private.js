@@ -1733,3 +1733,103 @@ export const processSubscriptionCheckout = (checkoutData) => {
     controller,
   };
 };
+
+/**********
+ * GESTIÓN DE SUSCRIPCIONES (ADMIN)
+ ************/
+
+// Obtener todas las suscripciones (solo admins)
+export const getAdminSubscriptions = () => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .get(`${baseUrl}/subscriptions/admin/all`, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error fetching admin subscriptions:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Actualizar estado de una suscripción
+export const updateSubscriptionStatus = (subscriptionId, statusData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .put(
+        `${baseUrl}/subscriptions/admin/${subscriptionId}/status`,
+        statusData,
+        {
+          ...headers,
+          signal: controller.signal,
+        }
+      )
+      .catch((error) => {
+        console.error("Error updating subscription status:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Eliminar suscripción
+export const deleteSubscription = (subscriptionId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .delete(`${baseUrl}/subscriptions/admin/${subscriptionId}`, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error deleting subscription:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Obtener suscripciones de un usuario específico
+export const getUserSubscriptions = (userId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .get(`${baseUrl}/subscriptions/admin/user/${userId}`, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error fetching user subscriptions:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
