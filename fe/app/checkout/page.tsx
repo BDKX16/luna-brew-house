@@ -1386,9 +1386,9 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Añadir más productos */}
+                {/* Añadir más productos - Solo visible en desktop */}
                 {cart.length > 0 && (
-                  <div className="mt-8">
+                  <div className="mt-8 hidden lg:block">
                     <h3 className="text-lg font-medium mb-4">
                       ¿Quieres añadir más productos?
                     </h3>
@@ -1698,12 +1698,12 @@ export default function CheckoutPage() {
                 </Card>
               </div>
 
-              <div className="lg:col-span-1">
-                <div className="sticky top-24 space-y-4">
+              <div className="lg:col-span-1 w-full">
+                <div className="lg:sticky lg:top-24 space-y-4">
                   {/* Sección de dirección de entrega */}
                   {isAuthenticated && (
-                    <Card className="rounded-xl overflow-hidden">
-                      <CardContent className="p-6">
+                    <Card className="rounded-xl overflow-hidden w-full">
+                      <CardContent className="p-4 sm:p-6">
                         <div className="flex items-center gap-2 mb-4">
                           <MapPin className="h-5 w-5 text-amber-600" />
                           <h3 className="text-lg font-semibold">
@@ -1874,17 +1874,17 @@ export default function CheckoutPage() {
           )}
 
           {checkoutStep === "payment" && (
-            <div className="grid gap-8 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <Card className="rounded-xl overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col lg:grid lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 w-full">
+                <Card className="rounded-xl overflow-hidden w-full">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                       <h3 className="text-xl font-bold">Método de pago</h3>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCheckoutStep("cart")}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-2 w-fit"
                       >
                         <ArrowLeft className="h-4 w-4" />
                         Volver
@@ -1945,12 +1945,12 @@ export default function CheckoutPage() {
                 </Card>
               </div>
 
-              <div className="lg:col-span-1">
-                <div className="sticky top-24 space-y-4">
+              <div className="lg:col-span-1 w-full">
+                <div className="lg:sticky lg:top-24 space-y-4">
                   {/* Sección de dirección de entrega */}
                   {isAuthenticated && (
-                    <Card className="rounded-xl overflow-hidden">
-                      <CardContent className="p-6">
+                    <Card className="rounded-xl overflow-hidden w-full">
+                      <CardContent className="p-4 sm:p-6">
                         <div className="flex items-center gap-2 mb-4">
                           <MapPin className="h-5 w-5 text-amber-600" />
                           <h3 className="text-lg font-semibold">

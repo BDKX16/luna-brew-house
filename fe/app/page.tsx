@@ -91,7 +91,8 @@ const BubbleIngredient = ({
     const handleMouseMove = (e: MouseEvent) => {
       if (!bubbleRef.current) return;
 
-      const { left, top, width, height } = bubbleRef.current.getBoundingClientRect();
+      const { left, top, width, height } =
+        bubbleRef.current.getBoundingClientRect();
       const centerX = left + width / 2;
       const centerY = top + height / 2;
 
@@ -159,9 +160,9 @@ const BubbleIngredient = ({
         ease: "easeInOut",
         delay: delay,
       }}
-      whileHover={{ 
+      whileHover={{
         scale: 1.1,
-        transition: { duration: 0.3 }
+        transition: { duration: 0.3 },
       }}
       drag // Permite arrastrar la burbuja
       dragConstraints={{
@@ -201,7 +202,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const { callEndpoint } = useFetchAndLoad();
 
-  // Ya no necesitamos este efecto a nivel de sección porque 
+  // Ya no necesitamos este efecto a nivel de sección porque
   // ahora cada burbuja maneja su propia interacción de manera independiente
 
   useEffect(() => {
@@ -244,6 +245,7 @@ export default function Home() {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between py-4">
+          {/* Logo */}
           <div className="flex items-center gap-2">
             <div className="relative h-10 w-10 overflow-hidden rounded-full">
               <Image
@@ -254,8 +256,20 @@ export default function Home() {
                 className="object-cover"
               />
             </div>
-            <span className="text-xl font-bold">Luna Brew House</span>
+            {/* Título solo visible en desktop cuando hay navegación */}
+            <span className="text-xl font-bold hidden md:block">
+              Luna Brew House
+            </span>
           </div>
+
+          {/* Título centrado en mobile si entra en una línea */}
+          <div className="flex-1 flex justify-center md:hidden">
+            <span className="text-lg font-bold text-center">
+              Luna Brew House
+            </span>
+          </div>
+
+          {/* Navegación solo visible en desktop */}
           <nav className="hidden md:flex items-center gap-6">
             <Link
               href="#inicio"
@@ -294,15 +308,10 @@ export default function Home() {
               Contacto
             </Link>
           </nav>
-          <div className="flex items-center gap-4">
+
+          {/* UserNav - siempre visible */}
+          <div className="flex items-center">
             <UserNav />
-            <Button
-              variant="outline"
-              size="sm"
-              className="md:hidden rounded-full"
-            >
-              Menú
-            </Button>
           </div>
         </div>
       </header>
@@ -544,53 +553,7 @@ export default function Home() {
 
             {/* Contenedor con posicionamiento relativo para los ingredientes flotantes */}
             <div className="relative min-h-[600px]" id="ingredients-container">
-              {/* Imágenes de ingredientes flotantes */}
-              {/* Ingredientes flotantes - Visibles en escritorio y ahora también en móvil */}
-              <div className="md:hidden flex justify-center flex-wrap gap-4 mb-8">
-                {/* Versión móvil de burbujas */}
-                <motion.div 
-                  className="bubble-ingredient"
-                  whileTap={{ scale: 1.1 }}
-                  animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  <div className="bubble-ingredient-inner">
-                    <Image src="/images/ingredient-barley.png" alt="Cebada" width={70} height={70} className="rounded-full" />
-                  </div>
-                </motion.div>
-                <motion.div 
-                  className="bubble-ingredient"
-                  whileTap={{ scale: 1.1 }}
-                  animate={{ scale: [1, 1.05, 1], rotate: [0, 2, 0] }}
-                  transition={{ duration: 2.5, repeat: Infinity, delay: 0.5 }}
-                >
-                  <div className="bubble-ingredient-inner">
-                    <Image src="/images/ingredient-hops.png" alt="Lúpulo" width={65} height={65} className="rounded-full" />
-                  </div>
-                </motion.div>
-                <motion.div 
-                  className="bubble-ingredient" 
-                  whileTap={{ scale: 1.1 }}
-                  animate={{ scale: [1, 1.05, 1], rotate: [0, -2, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, delay: 1 }}
-                >
-                  <div className="bubble-ingredient-inner">
-                    <Image src="/images/ingredient-water.png" alt="Agua" width={60} height={60} className="rounded-full" />
-                  </div>
-                </motion.div>
-                <motion.div 
-                  className="bubble-ingredient"
-                  whileTap={{ scale: 1.1 }}
-                  animate={{ scale: [1, 1.05, 1], rotate: [0, 3, 0] }}
-                  transition={{ duration: 3.5, repeat: Infinity, delay: 1.5 }}
-                >
-                  <div className="bubble-ingredient-inner">
-                    <Image src="/images/ingredient-yeast.png" alt="Levadura" width={70} height={70} className="rounded-full" />
-                  </div>
-                </motion.div>
-              </div>
-              
-              {/* Versión desktop - Interactiva y arrastrable */}
+              {/* Burbujas de ingredientes solo para desktop */}
               <BubbleIngredient
                 src="/images/ingredient-barley.png"
                 alt="Cebada"

@@ -374,46 +374,48 @@ export default function MercadoPagoOptions({
 
         {/* MercadoPago - Opción recomendada */}
         <Card className="border-2 border-blue-200 bg-blue-50/50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-1 bg-white rounded-lg border border-gray-200">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="p-1 bg-white rounded-lg border border-gray-200 flex-shrink-0">
                   <Image
                     src="/logo-mercado-pago-icone-512.png"
                     alt="MercadoPago"
-                    width={32}
-                    height={32}
-                    className="object-contain"
+                    width={28}
+                    height={28}
+                    className="sm:w-8 sm:h-8 object-contain"
                   />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h5 className="font-semibold">MercadoPago</h5>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                    <h5 className="font-semibold text-sm sm:text-base">
+                      MercadoPago
+                    </h5>
                     <Badge
                       variant="secondary"
-                      className="bg-green-100 text-green-700"
+                      className="bg-green-100 text-green-700 text-xs"
                     >
                       Recomendado
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     {isMobile()
                       ? "Redirige a la app de MercadoPago"
                       : "Paga con MercadoPago de forma segura"}
                   </p>
-                  <div className="flex items-center gap-4 mt-1">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1">
                     <span className="text-xs text-green-600 flex items-center gap-1">
                       <CheckCircle className="h-3 w-3" />
-                      Seguro SSL
+                      SSL
                     </span>
                     <span className="text-xs text-green-600 flex items-center gap-1">
                       <CheckCircle className="h-3 w-3" />
-                      Datos protegidos
+                      Seguro
                     </span>
                     {isMobile() && (
                       <span className="text-xs text-blue-500 flex items-center gap-1">
                         <Smartphone className="h-3 w-3" />
-                        App mercadopago
+                        App MP
                       </span>
                     )}
                   </div>
@@ -423,14 +425,14 @@ export default function MercadoPagoOptions({
               <Button
                 onClick={handleCheckoutPro}
                 disabled={isLoading || !hasValidDeliveryAddress}
-                className="bg-[#009ee3] hover:bg-[#008fcf] text-white min-w-[120px] disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="bg-[#009ee3] hover:bg-[#008fcf] text-white w-full sm:w-auto sm:min-w-[100px] text-sm py-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {loadingMethod === "pro" ? (
                   <LoadingSpinner size="sm" />
                 ) : (
                   <>
                     Pagar
-                    <ArrowRight className="h-4 w-4 ml-1" />
+                    <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-1" />
                   </>
                 )}
               </Button>
@@ -440,20 +442,22 @@ export default function MercadoPagoOptions({
 
         {/* Formulario de Tarjeta */}
         <Card className="border border-gray-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <CreditCard className="h-6 w-6 text-orange-600" />
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="p-2 bg-orange-100 rounded-lg flex-shrink-0">
+                  <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
                 </div>
-                <div>
-                  <h5 className="font-semibold">Tarjeta de Crédito/Débito</h5>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0 flex-1">
+                  <h5 className="font-semibold text-sm sm:text-base">
+                    Tarjeta de Crédito/Débito
+                  </h5>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     Completa los datos de tu tarjeta
                   </p>
-                  <div className="flex items-center gap-4 mt-1">
+                  <div className="flex items-center gap-2 sm:gap-4 mt-1">
                     <span className="text-xs text-gray-600">
-                      Visa, Mastercard, American Express
+                      Visa, Mastercard, Amex
                     </span>
                   </div>
                 </div>
@@ -463,10 +467,10 @@ export default function MercadoPagoOptions({
                 onClick={handleShowCardForm}
                 disabled={isLoading || !hasValidDeliveryAddress}
                 variant="outline"
-                className="min-w-[120px] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto sm:min-w-[100px] text-sm py-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
                 Usar Tarjeta
-                <ArrowRight className="h-4 w-4 ml-1" />
+                <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-1" />
               </Button>
             </div>
           </CardContent>
@@ -476,32 +480,32 @@ export default function MercadoPagoOptions({
       {/* Opción de pago en efectivo */}
       <div className="space-y-4">
         <Card className="border border-green-200 bg-green-50/30">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-4">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Banknote className="h-6 w-6 text-green-600" />
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+              <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
+                <Banknote className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
               </div>
 
-              <div className="flex-1">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-2 text-green-700">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base sm:text-lg font-semibold mb-1 sm:mb-2 text-green-700">
                       Pago en Efectivo
                     </h3>
-                    <p className="text-sm text-gray-600 mb-3">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">
                       Pagá en efectivo al momento de retirar tu pedido en Av.
                       Pedro Luro 2514.
                     </p>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
                         <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                        <span>Sin comisiones adicionales</span>
+                        <span>Sin comisiones</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
                         <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                        <span>Retiro en local únicamente</span>
+                        <span>Retiro en local</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
                         <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                         <span>Reserva inmediata</span>
                       </div>
@@ -513,10 +517,10 @@ export default function MercadoPagoOptions({
               <Button
                 onClick={handleCashPayment}
                 disabled={isLoading}
-                className="min-w-[120px] bg-green-600 hover:bg-green-700 text-white"
+                className="w-full sm:w-auto sm:min-w-[100px] text-sm py-2 bg-green-600 hover:bg-green-700 text-white"
               >
                 Reservar Pedido
-                <ArrowRight className="h-4 w-4 ml-1" />
+                <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-1" />
               </Button>
             </div>
           </CardContent>
