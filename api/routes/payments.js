@@ -627,7 +627,7 @@ router.post(
           },
           notification_url: `${
             process.env.API_URL || "http://localhost:5000"
-          }/api/payments/subscription-webhook`,
+          }/api/payments/webhook`,
         },
       };
 
@@ -950,13 +950,72 @@ router.post("/payments/webhook", async (req, res) => {
             current: true,
           });
 
-          // Reducir stock de productos
+          // Reducir stock de productos y crear suscripciones
           for (const item of order.items) {
             if (item.type === "beer") {
               await Beer.findOneAndUpdate(
                 { id: item.id },
                 { $inc: { stock: -item.quantity } }
               );
+            } else if (item.type === "subscription") {
+              // Crear suscripción del usuario
+              try {
+                const subscription = await Subscription.findOne({
+                  id: item.id,
+                });
+                if (subscription) {
+                  // Verificar si ya existe una suscripción activa para este usuario y plan
+                  const existingSubscription = await UserSubscription.findOne({
+                    userId: order.userId,
+                    subscriptionId: item.id,
+                    status: "active",
+                    nullDate: null,
+                  });
+
+                  if (!existingSubscription) {
+                    // Crear nueva suscripción
+                    const newSubscription = new UserSubscription({
+                      id: `sub_${Date.now()}_${order.userId}`,
+                      userId: order.userId,
+                      subscriptionId: item.id,
+                      name: subscription.name,
+                      beerType: subscription.beerType || "golden", // Valor por defecto
+                      beerName: subscription.name,
+                      liters: subscription.liters,
+                      price: subscription.price,
+                      status: "active",
+                      startDate: new Date(),
+                      nextDelivery: new Date(
+                        Date.now() + 30 * 24 * 60 * 60 * 1000
+                      ), // 30 días
+                      deliveries: [],
+                      billingInfo: {
+                        orderId: order._id,
+                        paymentId: paymentInfo.id,
+                        paymentDate: new Date(),
+                      },
+                    });
+
+                    await newSubscription.save();
+                    console.log(
+                      `✅ Suscripción creada para usuario ${order.userId}: ${subscription.name}`
+                    );
+                  } else {
+                    console.log(
+                      `⚠️ Suscripción ya existe para usuario ${order.userId}: ${subscription.name}`
+                    );
+                  }
+                } else {
+                  console.error(
+                    `❌ Plan de suscripción no encontrado: ${item.id}`
+                  );
+                }
+              } catch (subscriptionError) {
+                console.error(
+                  "❌ Error creando suscripción:",
+                  subscriptionError
+                );
+              }
             }
           }
         }
@@ -975,8 +1034,83 @@ router.post("/payments/webhook", async (req, res) => {
 
       if (orderByField) {
         // Actualizar usando la orden encontrada
-        orderByField.paymentStatus =
-          paymentInfo.status === "approved" ? "completed" : "failed";
+        if (
+          paymentInfo.status === "approved" ||
+          paymentInfo.status === "authorized"
+        ) {
+          orderByField.paymentStatus = "completed";
+
+          // Si la orden estaba pendiente, procesarla
+          if (orderByField.status === "pending") {
+            orderByField.status = "processing";
+
+            // Procesar items y crear suscripciones si es necesario
+            for (const item of orderByField.items) {
+              if (item.type === "beer") {
+                await Beer.findOneAndUpdate(
+                  { id: item.id },
+                  { $inc: { stock: -item.quantity } }
+                );
+              } else if (item.type === "subscription") {
+                // Crear suscripción del usuario
+                try {
+                  const subscription = await Subscription.findOne({
+                    id: item.id,
+                  });
+                  if (subscription) {
+                    // Verificar si ya existe una suscripción activa
+                    const existingSubscription = await UserSubscription.findOne(
+                      {
+                        userId: orderByField.userId,
+                        subscriptionId: item.id,
+                        status: "active",
+                        nullDate: null,
+                      }
+                    );
+
+                    if (!existingSubscription) {
+                      // Crear nueva suscripción
+                      const newSubscription = new UserSubscription({
+                        id: `sub_${Date.now()}_${orderByField.userId}`,
+                        userId: orderByField.userId,
+                        subscriptionId: item.id,
+                        name: subscription.name,
+                        beerType: subscription.beerType || "golden",
+                        beerName: subscription.name,
+                        liters: subscription.liters,
+                        price: subscription.price,
+                        status: "active",
+                        startDate: new Date(),
+                        nextDelivery: new Date(
+                          Date.now() + 30 * 24 * 60 * 60 * 1000
+                        ),
+                        deliveries: [],
+                        billingInfo: {
+                          orderId: orderByField._id,
+                          paymentId: paymentInfo.id,
+                          paymentDate: new Date(),
+                        },
+                      });
+
+                      await newSubscription.save();
+                      console.log(
+                        `✅ Suscripción creada (búsqueda alt) para usuario ${orderByField.userId}: ${subscription.name}`
+                      );
+                    }
+                  }
+                } catch (subscriptionError) {
+                  console.error(
+                    "❌ Error creando suscripción (búsqueda alt):",
+                    subscriptionError
+                  );
+                }
+              }
+            }
+          }
+        } else {
+          orderByField.paymentStatus = "failed";
+        }
+
         await orderByField.save();
       }
     }
@@ -1115,29 +1249,85 @@ function getBeerNameFromType(type) {
 
 // Obtener información de suscripción desde un pago
 async function getSubscriptionInfoFromPayment(payment) {
-  // En una implementación real, estos datos vendrían de la base de datos
   try {
-    // Extraer el ID de suscripción de los metadatos de pago o de una consulta adicional
-    // Ejemplo simplificado:
-    const subscriptionId = payment.orderId.replace("SUB-", "").split("-")[0];
+    console.log(
+      "🔍 Recuperando información de suscripción del pago:",
+      payment.orderId
+    );
 
-    const subscription = await Subscription.findOne({ id: subscriptionId });
-    if (!subscription) return null;
+    // Método 1: Obtener información desde los items del pago
+    if (payment.items && payment.items.length > 0) {
+      const subscriptionItem = payment.items.find(
+        (item) => item.type === "subscription"
+      );
+      if (subscriptionItem) {
+        console.log("✅ Información encontrada en items del pago");
 
-    // La información del tipo de cerveza tendría que recuperarse de algún lugar
-    // Aquí asumimos que está en los metadatos o en una tabla temporal
-    const beerType = "golden"; // Valor por defecto
+        // Obtener la suscripción desde la base de datos
+        const subscription = await Subscription.findOne({
+          id: subscriptionItem.id,
+        });
+        if (!subscription) {
+          console.error(
+            "❌ Suscripción no encontrada en base de datos:",
+            subscriptionItem.id
+          );
+          return null;
+        }
 
-    return {
-      subscriptionId: subscription.id,
-      name: subscription.name,
-      beerType,
-      beerName: getBeerNameFromType(beerType),
-      liters: subscription.liters,
-      price: subscription.price,
-    };
+        // Obtener beerType desde metadata si existe
+        let beerType = "golden"; // valor por defecto
+        if (payment.metadata && payment.metadata.beerType) {
+          beerType = payment.metadata.beerType;
+        }
+
+        return {
+          subscriptionId: subscription.id,
+          name: subscription.name,
+          beerType,
+          beerName: getBeerNameFromType(beerType),
+          liters: subscription.liters,
+          price: subscription.price,
+        };
+      }
+    }
+
+    // Método 2: Buscar por ID extraído del orderId (método de respaldo)
+    console.log("🔄 Intentando método de respaldo con orderId");
+    const orderIdParts = payment.orderId.replace("SUB-", "").split("-");
+    if (orderIdParts.length === 0) {
+      console.error("❌ Formato de orderId inválido:", payment.orderId);
+      return null;
+    }
+
+    // Intentar encontrar suscripción por los primeros dígitos del timestamp
+    const subscriptions = await Subscription.find({ nullDate: null });
+
+    // Si solo hay una suscripción activa, usar esa
+    if (subscriptions.length === 1) {
+      console.log("✅ Usando única suscripción activa disponible");
+      const subscription = subscriptions[0];
+
+      // Obtener beerType desde metadata si existe
+      let beerType = "golden"; // valor por defecto
+      if (payment.metadata && payment.metadata.beerType) {
+        beerType = payment.metadata.beerType;
+      }
+
+      return {
+        subscriptionId: subscription.id,
+        name: subscription.name,
+        beerType,
+        beerName: getBeerNameFromType(beerType),
+        liters: subscription.liters,
+        price: subscription.price,
+      };
+    }
+
+    console.error("❌ No se pudo determinar la suscripción desde el pago");
+    return null;
   } catch (error) {
-    console.error("Error al recuperar información de suscripción:", error);
+    console.error("❌ Error al recuperar información de suscripción:", error);
     return null;
   }
 }
