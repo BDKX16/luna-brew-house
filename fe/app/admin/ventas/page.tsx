@@ -16,6 +16,10 @@ import {
   Calendar,
   ArrowUpDown,
   Mail,
+  CreditCard,
+  Banknote,
+  Package,
+  ShoppingBag,
 } from "lucide-react";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -82,6 +86,19 @@ interface Order {
   customerSelectedTime?: boolean;
   trackingSteps?: TrackingStep[];
   cancellationReason?: string;
+  // Nuevas propiedades para información de pago y tipo
+  orderType: string;
+  hasPayment: boolean;
+  paymentStatus: string;
+  payment?: {
+    id: string;
+    status: string;
+    paymentMethod: string;
+    amount: number;
+    paymentId?: string;
+    preferenceId?: string;
+    date: string;
+  };
 }
 
 interface TrackingStep {
@@ -379,6 +396,139 @@ export default function VentasPage() {
     }
   };
 
+  const renderOrderTypeBadge = (orderType: string) => {
+    switch (orderType) {
+      case "suscripción":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-purple-50 text-purple-700 hover:bg-purple-50"
+          >
+            <span className="flex items-center gap-1">
+              <Package className="w-3 h-3" /> Suscripción
+            </span>
+          </Badge>
+        );
+      case "cervezas":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-amber-50 text-amber-700 hover:bg-amber-50"
+          >
+            <span className="flex items-center gap-1">
+              <ShoppingBag className="w-3 h-3" /> Cervezas
+            </span>
+          </Badge>
+        );
+      case "mixto":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50"
+          >
+            <span className="flex items-center gap-1">
+              <Package className="w-3 h-3" /> Mixto
+            </span>
+          </Badge>
+        );
+      default:
+        return (
+          <Badge
+            variant="outline"
+            className="bg-gray-50 text-gray-700 hover:bg-gray-50"
+          >
+            <span className="flex items-center gap-1">
+              <Package className="w-3 h-3" /> Desconocido
+            </span>
+          </Badge>
+        );
+    }
+  };
+
+  const renderPaymentStatusBadge = (paymentStatus: string, payment: any) => {
+    const getPaymentMethodIcon = (method: string) => {
+      switch (method) {
+        case "mercadopago":
+          return <CreditCard className="w-3 h-3" />;
+        case "cash":
+          return <Banknote className="w-3 h-3" />;
+        case "transfer":
+          return <CreditCard className="w-3 h-3" />;
+        default:
+          return <CreditCard className="w-3 h-3" />;
+      }
+    };
+
+    const paymentIcon = payment ? (
+      getPaymentMethodIcon(payment.paymentMethod)
+    ) : (
+      <XCircle className="w-3 h-3" />
+    );
+
+    switch (paymentStatus) {
+      case "completed":
+      case "approved":
+      case "accredited":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-green-50 text-green-700 hover:bg-green-50"
+          >
+            <span className="flex items-center gap-1">
+              {paymentIcon} Pagado
+            </span>
+          </Badge>
+        );
+      case "pending":
+      case "in_process":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-yellow-50 text-yellow-700 hover:bg-yellow-50"
+          >
+            <span className="flex items-center gap-1">
+              {paymentIcon} Pendiente
+            </span>
+          </Badge>
+        );
+      case "failed":
+      case "cancelled":
+      case "rejected":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-red-50 text-red-700 hover:bg-red-50"
+          >
+            <span className="flex items-center gap-1">
+              {paymentIcon} Fallido
+            </span>
+          </Badge>
+        );
+      case "sin_pago":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-gray-50 text-gray-700 hover:bg-gray-50"
+          >
+            <span className="flex items-center gap-1">
+              <XCircle className="w-3 h-3" /> Sin Pago
+            </span>
+          </Badge>
+        );
+      default:
+        return (
+          <Badge
+            variant="outline"
+            className="bg-gray-50 text-gray-700 hover:bg-gray-50"
+          >
+            <span className="flex items-center gap-1">
+              {paymentIcon} {paymentStatus}
+            </span>
+          </Badge>
+        );
+    }
+  };
+
   // Formatear la fecha para mostrar
   const formatDate = (dateStr: string) => {
     try {
@@ -521,7 +671,9 @@ export default function VentasPage() {
               <TableHead>ID Pedido</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Fecha</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Estado Pedido</TableHead>
+              <TableHead>Estado Pago</TableHead>
               <TableHead>Entrega</TableHead>
               <TableHead>Total</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -530,7 +682,7 @@ export default function VentasPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6">
+                <TableCell colSpan={9} className="text-center py-6">
                   <div className="flex justify-center">
                     <LoadingSpinner size="md" />
                   </div>
@@ -539,7 +691,7 @@ export default function VentasPage() {
             ) : filteredOrders.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={9}
                   className="text-center py-6 text-muted-foreground"
                 >
                   No se encontraron pedidos
@@ -558,7 +710,14 @@ export default function VentasPage() {
                     </div>
                   </TableCell>
                   <TableCell>{formatDate(order.date)}</TableCell>
+                  <TableCell>{renderOrderTypeBadge(order.orderType)}</TableCell>
                   <TableCell>{renderStatusBadge(order.status)}</TableCell>
+                  <TableCell>
+                    {renderPaymentStatusBadge(
+                      order.paymentStatus,
+                      order.payment
+                    )}
+                  </TableCell>
                   <TableCell>
                     {order.deliveryTime ? (
                       <div className="flex flex-col text-sm">
@@ -568,27 +727,23 @@ export default function VentasPage() {
                         </span>
                       </div>
                     ) : (
-                      <span className="text-sm text-muted-foreground">
-                        No programado
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>${order.total.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8"
+                        className="h-8 text-xs"
                         onClick={() => {
                           handleViewOrderDetail(order.id);
                           setIsDeliveryDialogOpen(true);
                         }}
                       >
-                        <Calendar className="h-3.5 w-3.5 mr-1" />
-                        Entrega
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Programar
                       </Button>
-
+                    )}
+                  </TableCell>
+                  <TableCell>${order.total.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
                       {order.status !== "delivered" &&
                         order.status !== "cancelled" && (
                           <Button

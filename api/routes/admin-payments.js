@@ -3,6 +3,7 @@ const router = express.Router();
 const { checkAuth, checkRole } = require("../middlewares/authentication");
 const Order = require("../models/order");
 const User = require("../models/user");
+const Payment = require("../models/payment");
 
 /**
  * RUTAS PARA LA GESTIÓN DE ÓRDENES DE VENTA
@@ -36,17 +37,66 @@ router.get(
         filter.date = { $lte: new Date(endDate) };
       }
 
-      // Ejecutar consulta
+      // Ejecutar consulta de órdenes
       const orders = await Order.find(filter)
         .sort({ date: -1 })
         .skip(skip)
         .limit(parseInt(limit));
 
+      // Para cada orden, obtener información del pago asociado
+      const ordersWithPayments = await Promise.all(
+        orders.map(async (order) => {
+          const orderObj = order.toObject();
+
+          // Buscar pago asociado por orderId
+          const payment = await Payment.findOne({ orderId: order.id });
+
+          // Determinar el tipo de orden (suscripción o cervezas)
+          let orderType = "cervezas"; // valor por defecto
+          let hasSubscription = false;
+          let hasBeer = false;
+
+          if (order.items && order.items.length > 0) {
+            hasSubscription = order.items.some(
+              (item) => item.type === "subscription"
+            );
+            hasBeer = order.items.some((item) => item.type === "beer");
+
+            if (hasSubscription && hasBeer) {
+              orderType = "mixto";
+            } else if (hasSubscription) {
+              orderType = "suscripción";
+            } else {
+              orderType = "cervezas";
+            }
+          }
+
+          // Agregar información del pago y tipo de orden
+          orderObj.payment = payment
+            ? {
+                id: payment._id,
+                status: payment.status,
+                paymentMethod: payment.paymentMethod,
+                amount: payment.amount,
+                paymentId: payment.paymentId,
+                preferenceId: payment.preferenceId,
+                date: payment.date,
+              }
+            : null;
+
+          orderObj.orderType = orderType;
+          orderObj.hasPayment = !!payment;
+          orderObj.paymentStatus = payment ? payment.status : "sin_pago";
+
+          return orderObj;
+        })
+      );
+
       // Obtener total para paginación
       const total = await Order.countDocuments(filter);
 
       res.status(200).json({
-        orders,
+        orders: ordersWithPayments,
         pagination: {
           total,
           page: parseInt(page),
@@ -309,13 +359,33 @@ router.get(
           startDate = new Date(today.getFullYear(), today.getMonth(), 1);
       }
 
-      // Total de ventas en el período
+      // Total de ventas en el período - solo órdenes con pagos acreditados/aprobados
       const totalSalesResult = await Order.aggregate([
         {
           $match: {
             date: { $gte: startDate },
             status: { $nin: ["cancelled", "failed"] },
             nullDate: null,
+          },
+        },
+        {
+          $lookup: {
+            from: "payments",
+            localField: "id",
+            foreignField: "orderId",
+            as: "payment",
+          },
+        },
+        {
+          $match: {
+            $or: [
+              {
+                "payment.status": {
+                  $in: ["approved", "accredited", "completed"],
+                },
+              },
+              { paymentMethod: "cash" }, // Incluir pagos en efectivo
+            ],
           },
         },
         {
@@ -327,13 +397,33 @@ router.get(
         },
       ]);
 
-      // Productos más vendidos
+      // Productos más vendidos - solo de órdenes con pagos acreditados/aprobados
       const topProducts = await Order.aggregate([
         {
           $match: {
             date: { $gte: startDate },
             status: { $nin: ["cancelled", "failed"] },
             nullDate: null,
+          },
+        },
+        {
+          $lookup: {
+            from: "payments",
+            localField: "id",
+            foreignField: "orderId",
+            as: "payment",
+          },
+        },
+        {
+          $match: {
+            $or: [
+              {
+                "payment.status": {
+                  $in: ["approved", "accredited", "completed"],
+                },
+              },
+              { paymentMethod: "cash" }, // Incluir pagos en efectivo
+            ],
           },
         },
         { $unwind: "$items" },
@@ -596,13 +686,31 @@ async function getDashboardStats() {
 
 // Obtener estadísticas para un período específico
 async function getPeriodStats(startDate, endDate) {
-  // Total de ventas y pedidos
+  // Total de ventas y pedidos - solo órdenes con pagos acreditados/aprobados
   const salesResult = await Order.aggregate([
     {
       $match: {
         date: { $gte: startDate, $lte: endDate },
         status: { $nin: ["cancelled", "failed"] },
         nullDate: null,
+      },
+    },
+    {
+      $lookup: {
+        from: "payments",
+        localField: "id",
+        foreignField: "orderId",
+        as: "payment",
+      },
+    },
+    {
+      $match: {
+        $or: [
+          {
+            "payment.status": { $in: ["approved", "accredited", "completed"] },
+          },
+          { paymentMethod: "cash" }, // Incluir pagos en efectivo
+        ],
       },
     },
     {
