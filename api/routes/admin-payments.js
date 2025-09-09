@@ -48,8 +48,8 @@ router.get(
         orders.map(async (order) => {
           const orderObj = order.toObject();
 
-          // Buscar pago asociado por orderId
-          const payment = await Payment.findOne({ orderId: order.id });
+          // Buscar pago asociado por orderId (usando el _id de MongoDB)
+          const payment = await Payment.findOne({ orderId: order._id });
 
           // Determinar el tipo de orden (suscripción o cervezas)
           let orderType = "cervezas"; // valor por defecto
@@ -369,9 +369,14 @@ router.get(
           },
         },
         {
+          $addFields: {
+            orderIdString: { $toString: "$_id" },
+          },
+        },
+        {
           $lookup: {
             from: "payments",
-            localField: "id",
+            localField: "orderIdString",
             foreignField: "orderId",
             as: "payment",
           },
@@ -407,9 +412,14 @@ router.get(
           },
         },
         {
+          $addFields: {
+            orderIdString: { $toString: "$_id" },
+          },
+        },
+        {
           $lookup: {
             from: "payments",
-            localField: "id",
+            localField: "orderIdString",
             foreignField: "orderId",
             as: "payment",
           },
@@ -696,9 +706,14 @@ async function getPeriodStats(startDate, endDate) {
       },
     },
     {
+      $addFields: {
+        orderIdString: { $toString: "$_id" },
+      },
+    },
+    {
       $lookup: {
         from: "payments",
-        localField: "id",
+        localField: "orderIdString",
         foreignField: "orderId",
         as: "payment",
       },
