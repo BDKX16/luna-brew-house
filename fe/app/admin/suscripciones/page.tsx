@@ -125,9 +125,10 @@ export default function AdminSubscriptionsPage() {
     try {
       setLoading(true);
       const result = await callEndpoint(getAdminSubscriptions());
-
+      console.log(result);
       if (result.status === 200 && result.data) {
-        const subscriptionsData = result.data.data || [];
+        const subscriptionsData = result.data.subscriptions || [];
+        console.log(subscriptionsData);
         setSubscriptions(subscriptionsData);
         setLastUpdated(new Date());
 
@@ -516,10 +517,10 @@ export default function AdminSubscriptionsPage() {
                   <TableCell>
                     <div>
                       <div className="font-medium">
-                        {subscription.user.name}
+                        {subscription.user?.name}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {subscription.user.email}
+                        {subscription.user?.email}
                       </div>
                     </div>
                   </TableCell>

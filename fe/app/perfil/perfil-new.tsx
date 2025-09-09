@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateUserProfile, getMyOrders } from "@/services/private";
-import { getSubscriptionPlans, getBeers } from "@/services/public";
+import {
+  getSubscriptionPlans,
+  getBeers,
+  getUserSubscriptions,
+} from "@/services/public";
 import useFetchAndLoad from "@/hooks/useFetchAndLoad";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
@@ -62,6 +66,10 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [userSubscriptions, setUserSubscriptions] = useState([]);
+  const [userSubscriptionsLoading, setUserSubscriptionsLoading] =
+    useState(false);
+  const [userSubscriptionsLoaded, setUserSubscriptionsLoaded] = useState(false);
   const [subscriptions, setSubscriptions] = useState([]);
   const [beers, setBeers] = useState([]);
   const [contentLoading, setContentLoading] = useState(false);
@@ -111,6 +119,46 @@ export default function ProfilePage() {
 
     loadOrders();
   }, [user, isAuthenticated, ordersLoaded, ordersLoading]); // Removido callEndpoint de las dependencias
+
+  useEffect(() => {
+    // Load user subscriptions when user is authenticated
+    const loadUserSubscriptions = async () => {
+      if (
+        user &&
+        isAuthenticated &&
+        !userSubscriptionsLoaded &&
+        !userSubscriptionsLoading
+      ) {
+        try {
+          setUserSubscriptionsLoading(true);
+          const response = await callEndpoint(getUserSubscriptions());
+          console.log(response);
+          if (response && response.data && response.data.subscriptions) {
+            setUserSubscriptions(response.data.subscriptions);
+            console.log(
+              "Suscripciones del usuario cargadas:",
+              response.data.subscriptions
+            );
+          }
+          setUserSubscriptionsLoaded(true);
+        } catch (error) {
+          // Solo loggear errores que no sean de cancelación
+          if (error.name !== "CanceledError" && error.name !== "AbortError") {
+            console.error("Error loading user subscriptions:", error);
+          }
+        } finally {
+          setUserSubscriptionsLoading(false);
+        }
+      }
+    };
+
+    loadUserSubscriptions();
+  }, [
+    user,
+    isAuthenticated,
+    userSubscriptionsLoaded,
+    userSubscriptionsLoading,
+  ]);
 
   useEffect(() => {
     // Load promotional content for non-admin users
@@ -235,7 +283,9 @@ export default function ProfilePage() {
     },
     {
       label: "Suscripciones Activas",
-      value: user.activeSubscriptions || "0",
+      value: userSubscriptionsLoading
+        ? "..."
+        : userSubscriptions.length.toString(),
       icon: CreditCard,
       color: "text-green-600",
     },
@@ -474,14 +524,28 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <span className="font-medium text-green-800">
-                      {user.activeSubscriptions || 0} Suscripciones Activas
+                      {userSubscriptionsLoading
+                        ? "Cargando..."
+                        : `${userSubscriptions.length} Suscripciones Activas`}
                     </span>
                   </div>
                   <p className="text-sm text-green-700">
-                    {user.activeSubscriptions > 0
+                    {userSubscriptions.length > 0
                       ? "Revisa tus planes activos y próximos envíos"
                       : "No tienes suscripciones activas"}
                   </p>
+                  {userSubscriptions.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {userSubscriptions.slice(0, 2).map((subscription) => (
+                        <div
+                          key={subscription._id}
+                          className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded"
+                        >
+                          {subscription.name} - {subscription.beerName}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -724,12 +788,16 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <CardTitle className="text-xl">
-                      {subscriptions.length > 0
+                      {userSubscriptions.length > 0
+                        ? "Mis Suscripciones"
+                        : subscriptions.length > 0
                         ? "Planes de Suscripción"
                         : "Cervezas Artesanales"}
                     </CardTitle>
                     <CardDescription>
-                      {subscriptions.length > 0
+                      {userSubscriptions.length > 0
+                        ? "Gestiona tus suscripciones activas"
+                        : subscriptions.length > 0
                         ? "Descubre nuestros planes con descuentos exclusivos"
                         : "Explora nuestra selección de cervezas premium"}
                     </CardDescription>
@@ -737,12 +805,53 @@ export default function ProfilePage() {
                 </div>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
-                {contentLoading ? (
+                {contentLoading || userSubscriptionsLoading ? (
                   <div className="flex justify-center py-8">
                     <LoadingSpinner />
                   </div>
+                ) : userSubscriptions.length > 0 ? (
+                  // Mostrar suscripciones activas del usuario
+                  <>
+                    <div className="flex-1 space-y-3">
+                      {userSubscriptions.slice(0, 2).map((subscription) => (
+                        <div
+                          key={subscription._id}
+                          className="p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <h3 className="font-semibold text-green-800 text-sm">
+                              {subscription.name}
+                            </h3>
+                            <Badge className="bg-green-600 text-white text-xs">
+                              Activa
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-green-600 mb-1">
+                            {subscription.beerName} - {subscription.liters}L
+                          </p>
+                          <div className="text-xs text-gray-500">
+                            Próxima entrega:{" "}
+                            {subscription.nextDelivery
+                              ? new Date(
+                                  subscription.nextDelivery
+                                ).toLocaleDateString()
+                              : "Por programar"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4">
+                      <Link href="/perfil/suscripciones">
+                        <Button className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white border-0">
+                          <Crown className="h-4 w-4 mr-2" />
+                          Gestionar Suscripciones
+                          <ArrowRight className="h-4 w-4 ml-2" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </>
                 ) : subscriptions.length > 0 ? (
-                  // Mostrar planes de suscripción
+                  // Mostrar planes de suscripción disponibles
                   <>
                     <div className="flex-1 space-y-3">
                       {subscriptions.slice(0, 2).map((subscription) => (
@@ -768,13 +877,11 @@ export default function ProfilePage() {
                       ))}
                     </div>
                     <div className="mt-4">
-                      <Link href="/productos?category=subscription">
-                        <Button
-                          variant="outline"
-                          className="w-full border-green-300 hover:bg-green-50 bg-transparent"
-                        >
-                          Ver Todos los Planes
-                          <ArrowRight className="ml-2 h-4 w-4" />
+                      <Link href="/suscripciones">
+                        <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0">
+                          <Crown className="h-4 w-4 mr-2" />
+                          Ver Planes de Suscripción
+                          <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
                       </Link>
                     </div>

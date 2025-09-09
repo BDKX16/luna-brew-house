@@ -1749,7 +1749,7 @@ export const getAdminSubscriptions = () => {
 
   return {
     call: axios
-      .get(`${baseUrl}/subscriptions/admin/all`, {
+      .get(`${baseUrl}/admin/subscriptions`, {
         ...headers,
         signal: controller.signal,
       })
@@ -1773,7 +1773,7 @@ export const updateSubscriptionStatus = (subscriptionId, statusData) => {
   return {
     call: axios
       .put(
-        `${baseUrl}/subscriptions/admin/${subscriptionId}/status`,
+        `${baseUrl}/admin/subscriptions/${subscriptionId}/status`,
         statusData,
         {
           ...headers,
@@ -1799,7 +1799,7 @@ export const deleteSubscription = (subscriptionId) => {
 
   return {
     call: axios
-      .delete(`${baseUrl}/subscriptions/admin/${subscriptionId}`, {
+      .delete(`${baseUrl}/admin/subscriptions/${subscriptionId}`, {
         ...headers,
         signal: controller.signal,
       })

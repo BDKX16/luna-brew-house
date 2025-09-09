@@ -19,10 +19,34 @@ router.get(
     try {
       const userId = req.userData._id;
 
+      // Debug: Log del usuario
+      console.log("🔍 Consultando suscripciones del usuario:");
+      console.log("- UserId:", userId);
+
+      // Contar todas las suscripciones del usuario para debug
+      const totalUser = await UserSubscription.countDocuments({ userId });
+      const totalUserActive = await UserSubscription.countDocuments({
+        userId,
+        nullDate: null,
+      });
+      console.log(`- Total suscripciones del usuario: ${totalUser}`);
+      console.log(
+        `- Total suscripciones activas del usuario: ${totalUserActive}`
+      );
+
       const userSubscriptions = await UserSubscription.find({
         userId,
         nullDate: null,
       }).sort({ startDate: -1 });
+
+      console.log(`- Suscripciones retornadas: ${userSubscriptions.length}`);
+      if (userSubscriptions.length > 0) {
+        console.log("- Primera suscripción:", {
+          id: userSubscriptions[0].id,
+          name: userSubscriptions[0].name,
+          status: userSubscriptions[0].status,
+        });
+      }
 
       res.status(200).json({ subscriptions: userSubscriptions });
     } catch (error) {
@@ -238,6 +262,10 @@ router.get(
       const { status, userId, limit = 100, page = 1 } = req.query;
       const skip = (page - 1) * limit;
 
+      // Debug: Log de la consulta
+      console.log("🔍 Consultando suscripciones admin:");
+      console.log("- Filtros:", { status, userId, limit, page });
+
       // Construir filtro
       const filter = { nullDate: null };
 
@@ -249,11 +277,50 @@ router.get(
         filter.userId = userId;
       }
 
-      // Ejecutar consulta
-      const subscriptions = await UserSubscription.find(filter)
+      console.log("- Filter final:", filter);
+
+      // Primero, contar todas las suscripciones sin filtro para debug
+      const totalAll = await UserSubscription.countDocuments({});
+      const totalActive = await UserSubscription.countDocuments({
+        nullDate: null,
+      });
+      console.log(`- Total suscripciones en DB: ${totalAll}`);
+      console.log(`- Total suscripciones activas: ${totalActive}`);
+
+      // Ejecutar consulta con populate del usuario
+      const subscriptionsRaw = await UserSubscription.find(filter)
+        .populate("userId", "name email phone address role createdAt")
         .sort({ startDate: -1 })
         .skip(skip)
         .limit(parseInt(limit));
+
+      // Transformar los datos para que el frontend los entienda
+      const subscriptions = subscriptionsRaw.map((sub) => {
+        const subObj = sub.toObject();
+        return {
+          ...subObj,
+          user: subObj.userId, // Crear alias 'user' para el campo 'userId'
+          planId: subObj.subscriptionId, // Mapear subscriptionId a planId
+          planName: subObj.name, // Mapear name a planName
+          planType: subObj.beerType, // Mapear beerType a planType
+          endDate: null, // No hay endDate en el modelo actual
+          deliveryFrequency: 30, // Valor por defecto (30 días)
+          deliveryAddress: subObj.user?.address || "No especificada",
+        };
+      });
+
+      console.log(`- Suscripciones encontradas: ${subscriptions.length}`);
+      if (subscriptions.length > 0) {
+        console.log("- Primera suscripción con usuario:", {
+          id: subscriptions[0].id,
+          user: subscriptions[0].user
+            ? {
+                name: subscriptions[0].user.name,
+                email: subscriptions[0].user.email,
+              }
+            : "No populated",
+        });
+      }
 
       // Obtener total para paginación
       const total = await UserSubscription.countDocuments(filter);
@@ -276,6 +343,51 @@ router.get(
   }
 );
 
+// Endpoint de debug para verificar datos en la base de datos
+router.get("/debug/all-subscriptions", async (req, res) => {
+  try {
+    console.log(
+      "🔍 DEBUG: Consultando TODAS las suscripciones en la base de datos"
+    );
+
+    const allSubscriptionsRaw = await UserSubscription.find({})
+      .populate("userId", "name email phone role")
+      .sort({ startDate: -1 });
+    const totalCount = await UserSubscription.countDocuments({});
+
+    // Transformar los datos para que el frontend los entienda
+    const allSubscriptions = allSubscriptionsRaw.map((sub) => {
+      const subObj = sub.toObject();
+      subObj.user = subObj.userId; // Crear alias 'user' para el campo 'userId'
+      return subObj;
+    });
+
+    console.log(`📊 Total de suscripciones en DB: ${totalCount}`);
+    console.log(
+      "📋 Suscripciones encontradas:",
+      allSubscriptions.map((sub) => ({
+        id: sub.id,
+        userId: sub.userId,
+        userName: sub.user ? sub.user.name : "Usuario no encontrado",
+        userEmail: sub.user ? sub.user.email : "Email no encontrado",
+        name: sub.name,
+        status: sub.status,
+        startDate: sub.startDate,
+        nullDate: sub.nullDate,
+      }))
+    );
+
+    res.status(200).json({
+      total: totalCount,
+      subscriptions: allSubscriptions,
+      message: "Debug endpoint - todas las suscripciones",
+    });
+  } catch (error) {
+    console.error("Error en debug endpoint:", error);
+    res.status(500).json({ error: "Error en debug endpoint" });
+  }
+});
+
 // Obtener información de una suscripción específica (admin)
 router.get(
   "/admin/subscriptions/:id",
@@ -283,14 +395,26 @@ router.get(
   checkRole(["admin", "owner"]),
   async (req, res) => {
     try {
-      const subscription = await UserSubscription.findOne({
+      const subscriptionRaw = await UserSubscription.findOne({
         id: req.params.id,
         nullDate: null,
-      });
+      }).populate("userId", "name email phone address role createdAt");
 
-      if (!subscription) {
+      if (!subscriptionRaw) {
         return res.status(404).json({ error: "Suscripción no encontrada" });
       }
+
+      // Transformar los datos para que el frontend los entienda
+      const subscription = {
+        ...subscriptionRaw.toObject(),
+        user: subscriptionRaw.userId, // Crear alias 'user' para el campo 'userId'
+        planId: subscriptionRaw.subscriptionId, // Mapear subscriptionId a planId
+        planName: subscriptionRaw.name, // Mapear name a planName
+        planType: subscriptionRaw.beerType, // Mapear beerType a planType
+        endDate: null, // No hay endDate en el modelo actual
+        deliveryFrequency: 30, // Valor por defecto (30 días)
+        deliveryAddress: subscriptionRaw.userId?.address || "No especificada",
+      };
 
       res.status(200).json({ subscription });
     } catch (error) {
@@ -770,36 +894,41 @@ router.put(
 );
 
 // Eliminar una suscripción (admin) - soft delete
-router.delete("/admin/:id", checkAuth, checkRole("admin"), async (req, res) => {
-  try {
-    const subscriptionId = req.params.id;
+router.delete(
+  "/admin/subscriptions/:id",
+  checkAuth,
+  checkRole("admin"),
+  async (req, res) => {
+    try {
+      const subscriptionId = req.params.id;
 
-    const subscription = await UserSubscription.findByIdAndUpdate(
-      subscriptionId,
-      { nullDate: new Date() },
-      { new: true }
-    );
+      const subscription = await UserSubscription.findByIdAndUpdate(
+        subscriptionId,
+        { nullDate: new Date() },
+        { new: true }
+      );
 
-    if (!subscription) {
-      return res.status(404).json({
+      if (!subscription) {
+        return res.status(404).json({
+          status: "error",
+          message: "Suscripción no encontrada",
+        });
+      }
+
+      res.status(200).json({
+        status: "success",
+        message: "Suscripción eliminada correctamente",
+      });
+    } catch (error) {
+      console.error("Error al eliminar suscripción:", error);
+      res.status(500).json({
         status: "error",
-        message: "Suscripción no encontrada",
+        message: "Error al eliminar la suscripción",
+        error: error.message,
       });
     }
-
-    res.status(200).json({
-      status: "success",
-      message: "Suscripción eliminada correctamente",
-    });
-  } catch (error) {
-    console.error("Error al eliminar suscripción:", error);
-    res.status(500).json({
-      status: "error",
-      message: "Error al eliminar la suscripción",
-      error: error.message,
-    });
   }
-});
+);
 
 // Obtener suscripciones de un usuario específico (admin)
 router.get(
