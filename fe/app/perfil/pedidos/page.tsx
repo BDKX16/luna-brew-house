@@ -80,6 +80,17 @@ export default function UserOrdersPage() {
     const ordersArray = orders ?? [];
     if (statusFilter === "all") {
       setFilteredOrders(ordersArray);
+    } else if (statusFilter === "shipping") {
+      // Filtro especial para "En camino" que incluye múltiples estados
+      setFilteredOrders(
+        ordersArray.filter(
+          (order) =>
+            order.status?.toLowerCase() === "shipped" ||
+            order.status?.toLowerCase() === "shipping" ||
+            order.status?.toLowerCase() === "en camino" ||
+            order.status?.toLowerCase() === "enviado"
+        )
+      );
     } else {
       setFilteredOrders(
         ordersArray.filter(
@@ -108,6 +119,7 @@ export default function UserOrdersPage() {
       case "delivered":
       case "entregado":
         return <CheckCircle className="h-5 w-5 text-green-600" />;
+      case "shipped":
       case "shipping":
       case "en camino":
       case "enviado":
@@ -128,6 +140,7 @@ export default function UserOrdersPage() {
       case "delivered":
       case "entregado":
         return "bg-green-50 border-green-200 text-green-800";
+      case "shipped":
       case "shipping":
       case "en camino":
       case "enviado":
@@ -148,6 +161,7 @@ export default function UserOrdersPage() {
       case "delivered":
       case "entregado":
         return "Entregado";
+      case "shipped":
       case "shipping":
       case "en camino":
       case "enviado":
@@ -168,6 +182,7 @@ export default function UserOrdersPage() {
       case "delivered":
       case "entregado":
         return "bg-green-600";
+      case "shipped":
       case "shipping":
       case "en camino":
       case "enviado":
@@ -213,6 +228,17 @@ export default function UserOrdersPage() {
     setIsModalOpen(false);
   };
 
+  // Función para obtener el pedido más reciente en camino
+  const getActiveShippingOrder = () => {
+    return (orders ?? []).find(
+      (order) =>
+        order.status?.toLowerCase() === "shipped" ||
+        order.status?.toLowerCase() === "shipping" ||
+        order.status?.toLowerCase() === "en camino" ||
+        order.status?.toLowerCase() === "enviado"
+    );
+  };
+
   const statusOptions = [
     { value: "all", label: "Todos los pedidos", count: (orders ?? []).length },
     {
@@ -238,6 +264,7 @@ export default function UserOrdersPage() {
       label: "En camino",
       count: (orders ?? []).filter(
         (o) =>
+          o.status?.toLowerCase() === "shipped" ||
           o.status?.toLowerCase() === "shipping" ||
           o.status?.toLowerCase() === "en camino" ||
           o.status?.toLowerCase() === "enviado"
@@ -321,6 +348,89 @@ export default function UserOrdersPage() {
           </CardContent>
         </Card>
 
+        {/* Card de Progreso del Pedido en Camino */}
+        {getActiveShippingOrder() && (
+          <Card className="mb-6 bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 shadow-lg">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="bg-blue-600 p-3 rounded-full">
+                  <Truck className="h-6 w-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-blue-900">
+                    ¡Tu pedido está en camino! 🚚
+                  </h3>
+                  <p className="text-blue-700">
+                    Pedido {formatOrderId(getActiveShippingOrder()._id)} -
+                    Total: {formatPrice(getActiveShippingOrder().total || 0)}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-300 hover:bg-blue-50 text-blue-700"
+                  onClick={() => openOrderDetails(getActiveShippingOrder())}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Ver Detalles
+                </Button>
+              </div>
+
+              {/* Barra de Progreso */}
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm font-medium text-blue-800">
+                  <span>Progreso del envío</span>
+                  <span>En tránsito</span>
+                </div>
+
+                <div className="w-full bg-blue-200 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full relative overflow-hidden"
+                    style={{ width: "75%" }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+                  </div>
+                </div>
+
+                {/* Estados del Progreso */}
+                <div className="flex justify-between text-xs text-blue-700 mt-2">
+                  <div className="flex flex-col items-center">
+                    <div className="w-3 h-3 bg-blue-600 rounded-full mb-1"></div>
+                    <span>Confirmado</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <div className="w-3 h-3 bg-blue-600 rounded-full mb-1"></div>
+                    <span>Preparando</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <div className="w-3 h-3 bg-blue-600 rounded-full mb-1 animate-pulse"></div>
+                    <span>En camino</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <div className="w-3 h-3 bg-blue-300 rounded-full mb-1"></div>
+                    <span>Entregado</span>
+                  </div>
+                </div>
+
+                {/* Información adicional */}
+                <div className="mt-4 p-3 bg-white/50 rounded-lg">
+                  <div className="flex items-center gap-2 text-sm text-blue-800">
+                    <Clock className="h-4 w-4" />
+                    <span className="font-medium">
+                      Tiempo estimado de entrega:
+                    </span>
+                    <span>24-48 horas</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-blue-700 mt-1">
+                    <MapPin className="h-4 w-4" />
+                    <span>Tu pedido llegará pronto a tu dirección</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Orders List */}
         {ordersLoading ? (
           <div className="flex justify-center py-12">
@@ -353,7 +463,7 @@ export default function UserOrdersPage() {
                             order.status
                           )} text-white`}
                         >
-                          {order.status || "Pendiente"}
+                          {getStatusText(order.status)}
                         </Badge>
                       </div>
 

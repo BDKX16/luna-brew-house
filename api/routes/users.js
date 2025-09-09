@@ -77,6 +77,8 @@ router.post("/register", async (req, res) => {
     const name = req.body.name;
     const email = req.body.email;
     const password = req.body.password;
+    const phone = req.body.phone;
+    const address = req.body.address;
 
     const encryptedPassword = encryptPass(password);
 
@@ -84,6 +86,8 @@ router.post("/register", async (req, res) => {
       name: name,
       email: email,
       password: encryptedPassword,
+      phone: phone,
+      address: address,
     };
     /** 
     try {
@@ -123,9 +127,33 @@ router.post("/register", async (req, res) => {
     console.log("ERROR - REGISTER ENDPOINT");
     console.log(error);
 
+    // Manejo específico para email duplicado
+    if (error.code === 11000 || error.name === "MongoServerError") {
+      if (error.keyPattern && error.keyPattern.email) {
+        const response = {
+          status: "error",
+          message: "Email already exists",
+          error: "Este email ya está registrado",
+        };
+        return res.status(409).json(response);
+      }
+    }
+
+    // Manejo para errores de validación de mongoose
+    if (error.name === "ValidationError") {
+      const response = {
+        status: "error",
+        message: "Validation error",
+        error: "Datos inválidos. Revisa todos los campos.",
+      };
+      return res.status(400).json(response);
+    }
+
+    // Error genérico del servidor
     const response = {
       status: "error",
-      error: error,
+      message: "Internal server error",
+      error: "Error del servidor. Intenta de nuevo.",
     };
 
     console.log(response);

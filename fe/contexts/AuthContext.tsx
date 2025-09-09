@@ -11,7 +11,10 @@ interface AuthContextType {
   user: any | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (
+    email: string,
+    password: string
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -86,14 +89,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         dispatch(setUser({ ...user, token }));
 
         setIsLoading(false);
-        return true;
+        return { success: true };
       }
       setIsLoading(false);
-      return false;
-    } catch (error) {
+      return { success: false, error: "Credenciales inválidas" };
+    } catch (error: any) {
       console.error("Login error", error);
       setIsLoading(false);
-      return false;
+
+      // Retornar información específica del error
+      if (error.response?.status === 401) {
+        return { success: false, error: "Email o contraseña incorrectos." };
+      } else if (error.response?.status === 404) {
+        return {
+          success: false,
+          error: "No existe una cuenta con este email.",
+        };
+      } else if (error.response?.status === 400) {
+        return {
+          success: false,
+          error: "Datos inválidos. Verifica tu email y contraseña.",
+        };
+      } else if (error.message?.includes("Network Error")) {
+        return {
+          success: false,
+          error: "Error de conexión. Verifica tu internet.",
+        };
+      }
+
+      return { success: false, error: "Error al iniciar sesión." };
     }
   };
 

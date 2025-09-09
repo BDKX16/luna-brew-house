@@ -15,6 +15,8 @@ import {
   Tag,
   X,
   ArrowLeft,
+  MapPin,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +38,15 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import UserAuthForm from "@/components/auth/user-auth-form";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -118,6 +129,15 @@ export default function CheckoutPage() {
   );
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [tempAddress, setTempAddress] = useState("");
+  const [hasValidAddress, setHasValidAddress] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [modalPhone, setModalPhone] = useState("");
+  const [modalAddress, setModalAddress] = useState("");
+  const [modalErrors, setModalErrors] = useState({ phone: "", address: "" });
+  const [savingAddress, setSavingAddress] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const { isAuthenticated, user } = useAuth();
@@ -245,6 +265,20 @@ export default function CheckoutPage() {
 
     setShowSubscriptionSuggestion(hasOnlyBeers && !hasSubscription);
   }, [cart]);
+
+  // Inicializar dirección de entrega cuando el usuario esté autenticado
+  useEffect(() => {
+    if (isAuthenticated && user?.address) {
+      setDeliveryAddress(user.address);
+      setTempAddress(user.address);
+      setHasValidAddress(true);
+    } else if (isAuthenticated) {
+      // Usuario autenticado pero sin dirección
+      setDeliveryAddress("");
+      setTempAddress("");
+      setHasValidAddress(false);
+    }
+  }, [isAuthenticated, user]);
 
   // Funciones para el carrito
   const addToCart = (item: CartItem) => {
@@ -393,6 +427,37 @@ export default function CheckoutPage() {
           : item
       )
     );
+  };
+
+  // Funciones para manejo de dirección de entrega
+  const handleEditAddress = () => {
+    setIsEditingAddress(true);
+    setTempAddress(deliveryAddress);
+  };
+
+  const handleSaveAddress = () => {
+    if (tempAddress.trim().length < 10) {
+      toast({
+        title: "Dirección inválida",
+        description:
+          "La dirección debe ser más específica (al menos 10 caracteres)",
+        variant: "destructive",
+      });
+      return;
+    }
+    setDeliveryAddress(tempAddress.trim());
+    setHasValidAddress(true);
+    setIsEditingAddress(false);
+    toast({
+      title: "Dirección actualizada",
+      description:
+        "La dirección de entrega ha sido actualizada para este pedido",
+    });
+  };
+
+  const handleCancelEditAddress = () => {
+    setTempAddress(deliveryAddress);
+    setIsEditingAddress(false);
   };
 
   // Cálculos para el carrito
@@ -564,6 +629,15 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Verificar que haya una dirección válida
+    if (!hasValidAddress || !deliveryAddress.trim()) {
+      // Abrir modal para ingresar dirección
+      setModalPhone(user?.phone || "");
+      setModalAddress(user?.address || "");
+      setShowAddressModal(true);
+      return;
+    }
+
     // Avanzar al paso de pago
     setCheckoutStep("payment");
   };
@@ -594,6 +668,70 @@ export default function CheckoutPage() {
 
     // Volver al paso de carrito
     setCheckoutStep("cart");
+  };
+
+  // Funciones para el modal de dirección
+  const validateModalFields = () => {
+    const errors = { phone: "", address: "" };
+
+    if (!modalPhone.trim()) {
+      errors.phone = "El teléfono es requerido";
+    } else if (!/^\+?[\d\s\-\(\)]+$/.test(modalPhone.trim())) {
+      errors.phone = "Formato de teléfono inválido";
+    }
+
+    if (!modalAddress.trim()) {
+      errors.address = "La dirección es requerida";
+    } else if (modalAddress.trim().length < 10) {
+      errors.address = "La dirección debe tener al menos 10 caracteres";
+    }
+
+    setModalErrors(errors);
+    return !errors.phone && !errors.address;
+  };
+
+  const handleSaveModalAddress = async () => {
+    if (!validateModalFields()) {
+      return;
+    }
+
+    setSavingAddress(true);
+
+    try {
+      // Aquí puedes agregar la llamada al API para actualizar el perfil del usuario
+      // await updateUserProfile({ phone: modalPhone, address: modalAddress });
+
+      // Actualizar el estado local
+      setDeliveryAddress(modalAddress);
+      setHasValidAddress(true);
+
+      // Cerrar modal
+      setShowAddressModal(false);
+      setModalErrors({ phone: "", address: "" });
+
+      toast({
+        title: "Dirección guardada",
+        description: "Tu información de entrega ha sido actualizada",
+      });
+
+      // Proceder al checkout
+      setCheckoutStep("payment");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la dirección. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowAddressModal(false);
+    setModalErrors({ phone: "", address: "" });
+    setModalPhone(user?.phone || "");
+    setModalAddress(user?.address || "");
   };
 
   // Loading state
@@ -1387,8 +1525,24 @@ export default function CheckoutPage() {
                           </div>
 
                           <div className="mt-6 space-y-4">
+                            {/* Mensaje de error si no hay dirección */}
+                            {isAuthenticated && !hasValidAddress && (
+                              <div className="p-3 rounded-md bg-orange-50 border border-orange-200">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                  <p className="text-orange-700 text-sm font-medium">
+                                    Dirección requerida
+                                  </p>
+                                </div>
+                                <p className="text-orange-600 text-xs mt-1">
+                                  Haz clic en "Proceder al Pago" para agregar tu
+                                  dirección de entrega
+                                </p>
+                              </div>
+                            )}
+
                             <Button
-                              className="w-full rounded-full bg-amber-600 hover:bg-amber-700"
+                              className="w-full rounded-full bg-amber-600 hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                               onClick={handleProceedToCheckout}
                               disabled={loadingCheckout}
                             >
@@ -1397,6 +1551,8 @@ export default function CheckoutPage() {
                                   <LoadingSpinner size="sm" />
                                   <span className="ml-2">Procesando...</span>
                                 </>
+                              ) : isAuthenticated && !hasValidAddress ? (
+                                "Agregar Dirección"
                               ) : (
                                 "Proceder al pago"
                               )}
@@ -1469,7 +1625,101 @@ export default function CheckoutPage() {
               </div>
 
               <div className="lg:col-span-1">
-                <div className="sticky top-24">
+                <div className="sticky top-24 space-y-4">
+                  {/* Sección de dirección de entrega */}
+                  {isAuthenticated && (
+                    <Card className="rounded-xl overflow-hidden">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                          <MapPin className="h-5 w-5 text-amber-600" />
+                          <h3 className="text-lg font-semibold">
+                            Dirección de entrega
+                          </h3>
+                        </div>
+
+                        {isEditingAddress ? (
+                          <div className="space-y-3">
+                            <textarea
+                              value={tempAddress}
+                              onChange={(e) => setTempAddress(e.target.value)}
+                              placeholder="Ingresa la dirección completa de entrega"
+                              className="w-full min-h-[80px] p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                              maxLength={200}
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={handleSaveAddress}
+                                className="bg-amber-600 hover:bg-amber-700 text-white"
+                              >
+                                Guardar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCancelEditAddress}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div
+                              className={`p-3 rounded-lg ${
+                                !hasValidAddress
+                                  ? "bg-red-50 border border-red-200"
+                                  : "bg-gray-50"
+                              }`}
+                            >
+                              {!hasValidAddress ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                  <p className="text-red-700 text-sm font-medium">
+                                    No hay dirección especificada
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-700">
+                                  {deliveryAddress}
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={!hasValidAddress ? "default" : "outline"}
+                              onClick={handleEditAddress}
+                              className={`flex items-center gap-2 w-full ${
+                                !hasValidAddress
+                                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                                  : ""
+                              }`}
+                            >
+                              <Edit3 className="h-4 w-4" />
+                              {!hasValidAddress
+                                ? "Agregar dirección de entrega"
+                                : "Cambiar dirección para esta entrega"}
+                            </Button>
+                          </div>
+                        )}
+
+                        {deliveryAddress && (
+                          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+                              <p className="text-xs text-blue-700">
+                                Si cambias la dirección aquí, solo se aplicará a
+                                este pedido. Para actualizarla permanentemente,
+                                ve a tu perfil.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Resumen de compra */}
                   <Card className="rounded-xl overflow-hidden">
                     <CardContent className="p-6">
                       <h3 className="text-xl font-bold mb-4">
@@ -1586,6 +1836,7 @@ export default function CheckoutPage() {
                         <MercadoPagoOptions
                           cart={cart}
                           user={user}
+                          deliveryAddress={deliveryAddress}
                           appliedDiscount={appliedDiscount}
                           discountCode={discountCode}
                           onPaymentSuccess={handlePaymentSuccess}
@@ -1621,7 +1872,101 @@ export default function CheckoutPage() {
               </div>
 
               <div className="lg:col-span-1">
-                <div className="sticky top-24">
+                <div className="sticky top-24 space-y-4">
+                  {/* Sección de dirección de entrega */}
+                  {isAuthenticated && (
+                    <Card className="rounded-xl overflow-hidden">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                          <MapPin className="h-5 w-5 text-amber-600" />
+                          <h3 className="text-lg font-semibold">
+                            Dirección de entrega
+                          </h3>
+                        </div>
+
+                        {isEditingAddress ? (
+                          <div className="space-y-3">
+                            <textarea
+                              value={tempAddress}
+                              onChange={(e) => setTempAddress(e.target.value)}
+                              placeholder="Ingresa la dirección completa de entrega"
+                              className="w-full min-h-[80px] p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                              maxLength={200}
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={handleSaveAddress}
+                                className="bg-amber-600 hover:bg-amber-700 text-white"
+                              >
+                                Guardar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCancelEditAddress}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div
+                              className={`p-3 rounded-lg ${
+                                !hasValidAddress
+                                  ? "bg-red-50 border border-red-200"
+                                  : "bg-gray-50"
+                              }`}
+                            >
+                              {!hasValidAddress ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                  <p className="text-red-700 text-sm font-medium">
+                                    No hay dirección especificada
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-700">
+                                  {deliveryAddress}
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={!hasValidAddress ? "default" : "outline"}
+                              onClick={handleEditAddress}
+                              className={`flex items-center gap-2 w-full ${
+                                !hasValidAddress
+                                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                                  : ""
+                              }`}
+                            >
+                              <Edit3 className="h-4 w-4" />
+                              {!hasValidAddress
+                                ? "Agregar dirección de entrega"
+                                : "Cambiar dirección para esta entrega"}
+                            </Button>
+                          </div>
+                        )}
+
+                        {deliveryAddress && (
+                          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+                              <p className="text-xs text-blue-700">
+                                Si cambias la dirección aquí, solo se aplicará a
+                                este pedido. Para actualizarla permanentemente,
+                                ve a tu perfil.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Resumen de compra */}
                   <Card className="rounded-xl overflow-hidden">
                     <CardContent className="p-6">
                       <h3 className="text-xl font-bold mb-4">
@@ -1726,6 +2071,96 @@ export default function CheckoutPage() {
           </div>
         </div>
       </footer>
+
+      {/* Modal para ingresar dirección */}
+      <Dialog open={showAddressModal} onOpenChange={setShowAddressModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-orange-600" />
+              Información de Entrega
+            </DialogTitle>
+            <DialogDescription>
+              Para proceder con el pago, necesitamos tu número de teléfono y
+              dirección de entrega.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="modal-phone">Número de Teléfono</Label>
+              <Input
+                id="modal-phone"
+                type="tel"
+                placeholder="+54 11 1234-5678"
+                value={modalPhone}
+                onChange={(e) => {
+                  setModalPhone(e.target.value);
+                  if (modalErrors.phone) {
+                    setModalErrors((prev) => ({ ...prev, phone: "" }));
+                  }
+                }}
+                className={modalErrors.phone ? "border-red-500" : ""}
+              />
+              {modalErrors.phone && (
+                <p className="text-sm text-red-500">{modalErrors.phone}</p>
+              )}
+              <p className="text-xs text-gray-500">
+                Lo usaremos para coordinar la entrega
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="modal-address">Dirección de Entrega</Label>
+              <Input
+                id="modal-address"
+                placeholder="Calle, número, piso, dpto, localidad"
+                value={modalAddress}
+                onChange={(e) => {
+                  setModalAddress(e.target.value);
+                  if (modalErrors.address) {
+                    setModalErrors((prev) => ({ ...prev, address: "" }));
+                  }
+                }}
+                className={modalErrors.address ? "border-red-500" : ""}
+              />
+              {modalErrors.address && (
+                <p className="text-sm text-red-500">{modalErrors.address}</p>
+              )}
+              <p className="text-xs text-gray-500">
+                Incluye todos los detalles necesarios para la entrega
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCloseModal}
+              disabled={savingAddress}
+              className="w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveModalAddress}
+              disabled={
+                savingAddress || !modalPhone.trim() || !modalAddress.trim()
+              }
+              className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700"
+            >
+              {savingAddress ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span className="ml-2">Guardando...</span>
+                </>
+              ) : (
+                "Guardar y Continuar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

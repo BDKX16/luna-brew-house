@@ -40,18 +40,29 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password);
-      if (success) {
-        const redirectPath = searchParams?.get("redirect") || "/perfil";
+      // Convertir email a lowercase antes de enviar
+      const normalizedEmail = email.toLowerCase().trim();
+      const result = await login(normalizedEmail, password);
+      console.log(result);
+      if (result) {
+        const redirectPath = searchParams?.get("redirect") || "/";
         router.push(redirectPath);
       } else {
-        setError("No se pudo iniciar sesión. Verifica tus credenciales.");
+        setError(result.error || "Error al iniciar sesión.");
       }
     } catch (err: any) {
       console.error("Error en login:", err);
-      setError("Error al iniciar sesión. Por favor, intenta de nuevo.");
+      setError("Error inesperado. Por favor, intenta de nuevo.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Función para manejar el Enter en los inputs
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !isLoading && email && password) {
+      e.preventDefault();
+      handleLogin(e as any);
     }
   };
 
@@ -90,9 +101,21 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-4">
               {error && (
-                <div className="p-3 rounded-md bg-red-50 text-red-600 text-sm">
-                  {error}
-                </div>
+                <Alert className="bg-red-50 border-red-200">
+                  <AlertDescription className="text-red-800">
+                    {error}
+                    {error.includes("No existe una cuenta") && (
+                      <div className="mt-2">
+                        <Link
+                          href="/auth/registro"
+                          className="text-amber-600 hover:text-amber-800 underline font-medium"
+                        >
+                          Crear cuenta nueva
+                        </Link>
+                      </div>
+                    )}
+                  </AlertDescription>
+                </Alert>
               )}
 
               <div className="space-y-2">
@@ -105,7 +128,9 @@ export default function LoginPage() {
                   placeholder="tu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onKeyPress={handleKeyPress}
                   required
+                  autoComplete="email"
                 />
               </div>
 
@@ -117,6 +142,7 @@ export default function LoginPage() {
                   <Link
                     href="/auth/recuperar-password"
                     className="text-xs text-amber-600 hover:text-amber-800"
+                    tabIndex={-1}
                   >
                     ¿Olvidaste tu contraseña?
                   </Link>
@@ -127,14 +153,16 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onKeyPress={handleKeyPress}
                   required
+                  autoComplete="current-password"
                 />
               </div>
 
               <Button
                 type="submit"
                 className="w-full bg-amber-600 hover:bg-amber-700"
-                disabled={isLoading}
+                disabled={isLoading || !email || !password}
               >
                 {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
               </Button>

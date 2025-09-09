@@ -17,11 +17,13 @@ import {
   CheckCircle,
   ArrowRight,
   Smartphone,
+  Banknote,
 } from "lucide-react";
 
 interface MercadoPagoOptionsProps {
   cart: any[];
   user: any;
+  deliveryAddress?: string;
   appliedDiscount?: any;
   discountCode?: string;
   onPaymentSuccess: (data: any) => void;
@@ -34,6 +36,7 @@ interface MercadoPagoOptionsProps {
 export default function MercadoPagoOptions({
   cart,
   user,
+  deliveryAddress,
   appliedDiscount,
   discountCode,
   onPaymentSuccess,
@@ -50,6 +53,10 @@ export default function MercadoPagoOptions({
   const [cardFormInstance, setCardFormInstance] = useState<any>(null);
   const { toast } = useToast();
   const { callEndpoint } = useFetchAndLoad();
+
+  // Verificar si hay dirección válida para entrega
+  const hasValidDeliveryAddress =
+    deliveryAddress && deliveryAddress.trim().length >= 10;
 
   // Detectar si es dispositivo móvil
   const isMobile = () => {
@@ -87,7 +94,7 @@ export default function MercadoPagoOptions({
       lastName: user?.lastName || "Luna Brew",
       email: user?.email || "user@example.com",
       phone: user?.phone || "+54 11 1234-5678",
-      address: "Dirección de envío",
+      address: deliveryAddress || user?.address || "Dirección de envío",
       city: "Buenos Aires",
       postalCode: "1000",
       deliveryTime: null,
@@ -300,6 +307,62 @@ export default function MercadoPagoOptions({
     }
   };
 
+  // Función para pago en efectivo al retirar
+  const handleCashPayment = async () => {
+    setIsLoading(true);
+    setLoadingMethod("cash");
+
+    try {
+      const orderData = {
+        cartItems: cart.map((item) => ({
+          id: item.id,
+          name: item.type === "beer" ? item.product.name : item.product.name,
+          type: item.type,
+          quantity: item.quantity,
+          price: item.type === "beer" ? item.product.price : item.product.price,
+        })),
+        total: calculateTotal(),
+        subtotal: calculateSubtotal(),
+        discountAmount: calculateDiscountAmount(),
+        discountCode,
+        paymentMethod: "cash",
+        deliveryMethod: "pickup", // Retiro en local
+        shippingInfo: {
+          firstName: user?.firstName || "Usuario",
+          lastName: user?.lastName || "Luna Brew",
+          email: user?.email || "user@example.com",
+          phone: user?.phone || "+54 11 1234-5678",
+          address: "Retiro en local",
+          city: "Buenos Aires",
+          postalCode: "1000",
+          deliveryTime: null,
+        },
+      };
+
+      // Simular creación de orden para pago en efectivo
+      // Aquí podrías llamar a un endpoint específico para órdenes de efectivo
+      console.log("Orden de pago en efectivo:", orderData);
+
+      toast({
+        title: "¡Orden registrada!",
+        description:
+          "Tu pedido ha sido registrado para pago en efectivo al retirar.",
+      });
+
+      onPaymentSuccess({
+        paymentMethod: "cash",
+        orderData,
+        message: "Orden registrada para pago en efectivo",
+      });
+    } catch (error) {
+      console.error("Error creating cash order:", error);
+      onPaymentError("Error al registrar la orden de pago en efectivo");
+    } finally {
+      setIsLoading(false);
+      setLoadingMethod(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Opciones de pago */}
@@ -314,8 +377,14 @@ export default function MercadoPagoOptions({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Shield className="h-6 w-6 text-blue-600" />
+                <div className="p-1 bg-white rounded-lg border border-gray-200">
+                  <Image
+                    src="/logo-mercado-pago-icone-512.png"
+                    alt="MercadoPago"
+                    width={32}
+                    height={32}
+                    className="object-contain"
+                  />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -330,7 +399,7 @@ export default function MercadoPagoOptions({
                   <p className="text-sm text-muted-foreground">
                     {isMobile()
                       ? "Redirige a la app de MercadoPago"
-                      : "Modal oficial de MercadoPago - Máxima seguridad"}
+                      : "Paga con MercadoPago de forma segura"}
                   </p>
                   <div className="flex items-center gap-4 mt-1">
                     <span className="text-xs text-green-600 flex items-center gap-1">
@@ -342,9 +411,9 @@ export default function MercadoPagoOptions({
                       Datos protegidos
                     </span>
                     {isMobile() && (
-                      <span className="text-xs text-blue-600 flex items-center gap-1">
+                      <span className="text-xs text-blue-500 flex items-center gap-1">
                         <Smartphone className="h-3 w-3" />
-                        App móvil
+                        App mercadopago
                       </span>
                     )}
                   </div>
@@ -353,8 +422,8 @@ export default function MercadoPagoOptions({
 
               <Button
                 onClick={handleCheckoutPro}
-                disabled={isLoading}
-                className="bg-[#009ee3] hover:bg-[#008fcf] text-white min-w-[120px]"
+                disabled={isLoading || !hasValidDeliveryAddress}
+                className="bg-[#009ee3] hover:bg-[#008fcf] text-white min-w-[120px] disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {loadingMethod === "pro" ? (
                   <LoadingSpinner size="sm" />
@@ -392,11 +461,61 @@ export default function MercadoPagoOptions({
 
               <Button
                 onClick={handleShowCardForm}
-                disabled={isLoading}
+                disabled={isLoading || !hasValidDeliveryAddress}
                 variant="outline"
-                className="min-w-[120px]"
+                className="min-w-[120px] disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
                 Usar Tarjeta
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Opción de pago en efectivo */}
+      <div className="space-y-4">
+        <Card className="border border-green-200 bg-green-50/30">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Banknote className="h-6 w-6 text-green-600" />
+              </div>
+
+              <div className="flex-1">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2 text-green-700">
+                      Pago en Efectivo
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Pagá en efectivo al momento de retirar tu pedido en Av.
+                      Pedro Luro 2514.
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span>Sin comisiones adicionales</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span>Retiro en local únicamente</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span>Reserva inmediata</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleCashPayment}
+                disabled={isLoading}
+                className="min-w-[120px] bg-green-600 hover:bg-green-700 text-white"
+              >
+                Reservar Pedido
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             </div>

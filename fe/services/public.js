@@ -34,13 +34,19 @@ export const login = (username, password) => {
   };
 };
 
-export const register = (name, username, password) => {
+export const register = (name, username, password, phone, address) => {
   const controller = loadAbort();
   return {
     call: axios
       .post(
         process.env.NEXT_PUBLIC_API_URL + "/register",
-        { name: name, email: username, password: password },
+        {
+          name: name,
+          email: username,
+          password: password,
+          phone: phone,
+          address: address,
+        },
         { signal: controller.signal }
       )
       .catch((error) => {
