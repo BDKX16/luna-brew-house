@@ -357,14 +357,14 @@ export default function Home() {
                 </Button>
               </div>
             </div>
-            <div className="relative w-full max-w-md">
+            <div className="relative max-w-md">
               <div className="bg-white/20 backdrop-blur-sm p-4 rounded-3xl shadow-lg">
                 <Image
-                  src="/images/luna-beer.png"
+                  src="/images/stout.jpg"
                   alt="Cerveza Luna Brew House - Hecha en casa con amor"
-                  width={500}
+                  width={600}
                   height={700}
-                  className="rounded-2xl object-cover"
+                  className="rounded-2xl object-cover w-80 h-96"
                 />
               </div>
             </div>
@@ -393,7 +393,7 @@ export default function Home() {
             </div>
             <div className="relative h-[300px] overflow-hidden rounded-3xl">
               <Image
-                src="/images/brewery-interior.png"
+                src="/images/cerveza_perfecta.jpg"
                 alt="Elaboración artesanal"
                 fill
                 className="object-cover"
@@ -822,13 +822,23 @@ export default function Home() {
             </div>
 
             <div className="grid gap-8 lg:grid-cols-2 items-center">
-              <div className="relative h-[400px] overflow-hidden rounded-3xl">
-                <Image
-                  src="/images/family-brewing.png"
-                  alt="Familia Luna Brew House"
-                  fill
-                  className="object-cover"
-                />
+              <div className="grid grid-cols-2 h-[400px] overflow-hidden rounded-3xl">
+                <div className="relative overflow-hidden rounded-tl-2xl rounded-bl-2xl">
+                  <Image
+                    src="/images/granos.jpg"
+                    alt="Granos de cerveza artesanal"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="relative overflow-hidden rounded-tr-2xl rounded-br-2xl">
+                  <Image
+                    src="/images/granos_primerplano.jpg"
+                    alt="Familia Luna Brew House"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
               </div>
               <div className="space-y-6">
                 <div className="space-y-2">
