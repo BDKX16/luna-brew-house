@@ -400,7 +400,7 @@ class EmailService {
         <p><strong>Número de Pedido:</strong> #${orderData.orderId}</p>
         <p><strong>Estado:</strong> <span class="status-badge status-confirmed">Confirmado</span></p>
         <p><strong>Fecha de Pedido:</strong> ${new Date(
-          orderData.orderDate
+          orderData.date
         ).toLocaleDateString("es-ES")}</p>
       </div>
       
@@ -433,7 +433,7 @@ class EmailService {
       <div style="text-align: center;">
         <a href="${
           process.env.FRONT_URL || "https://lunabrewhouse.com"
-        }/pedidos/${orderData.orderId}" class="button">
+        }/pedidos" class="button">
           Seguir mi Pedido
         </a>
       </div>

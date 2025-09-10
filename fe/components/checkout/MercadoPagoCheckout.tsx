@@ -119,6 +119,17 @@ export default function MercadoPagoCheckout({
     setIsLoading(true);
 
     try {
+      // Función para calcular el costo de envío
+      const calculateShippingCost = () => {
+        const totalBeers = cartItems
+          .filter((item) => item.type === "beer")
+          .reduce((total, item) => total + item.quantity, 0);
+        const hasSubscription = cartItems.some(
+          (item) => item.type === "subscription"
+        );
+        return totalBeers >= 3 || hasSubscription ? 0 : 1500;
+      };
+
       // Primero crear la preferencia de pago
       const preferenceData = {
         cartItems: cartItems.map((item) => ({
@@ -145,6 +156,7 @@ export default function MercadoPagoCheckout({
               valid: true,
             }
           : null,
+        shippingCost: calculateShippingCost(), // Agregar el costo del envío
       };
 
       const preferenceResponse = await createMercadoPagoPreference(

@@ -79,6 +79,16 @@ export default function MercadoPagoOptions({
     };
   }, [cardFormInstance]);
 
+  // Función para calcular el costo de envío
+  const calculateShippingCost = () => {
+    const totalBeers = cart
+      .filter((item) => item.type === "beer")
+      .reduce((total, item) => total + item.quantity, 0);
+    const hasSubscription = cart.some((item) => item.type === "subscription");
+    // Envío gratis a partir de 3 cervezas o si hay una suscripción
+    return totalBeers >= 3 || hasSubscription ? 0 : 1500; // $1500 pesos de envío si es menos de 3 cervezas y no hay suscripción
+  };
+
   // Preparar datos para la preferencia
   const preparePreferenceData = () => {
     const cartItems = cart.map((item) => ({
@@ -89,6 +99,8 @@ export default function MercadoPagoOptions({
       price: item.type === "beer" ? item.product.price : item.product.price,
       beerType: item.type === "subscription" ? item.beerType : undefined, // Incluir beerType para suscripciones
     }));
+
+    const shippingCost = calculateShippingCost();
 
     const shippingInfo = {
       firstName: user?.name?.split(" ")[0] || "Usuario",
@@ -114,6 +126,7 @@ export default function MercadoPagoOptions({
       cartItems,
       shippingInfo,
       discountInfo,
+      shippingCost, // Agregar el costo del envío
     };
   };
 

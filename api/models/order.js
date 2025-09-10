@@ -128,6 +128,11 @@ const orderSchema = new Schema({
     required: false,
     default: 0,
   },
+  shippingCost: {
+    type: Number,
+    required: false,
+    default: 0,
+  },
   nullDate: {
     type: Date,
     required: false,

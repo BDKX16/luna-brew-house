@@ -47,7 +47,7 @@ if (!isTestEnvironment && process.env.NODE_ENV !== "production") {
 // Crear preferencia para checkout
 router.post("/payments/create-preference", checkAuth, async (req, res) => {
   try {
-    const { cartItems, shippingInfo, discountInfo } = req.body;
+    const { cartItems, shippingInfo, discountInfo, shippingCost } = req.body;
     const userId = req.userData._id;
 
     // Validar datos requeridos
@@ -114,6 +114,22 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
       }
     }
 
+    // Agregar el costo del envío como un ítem si es mayor a 0
+    if (shippingCost && shippingCost > 0) {
+      items.push({
+        id: "shipping",
+        title: "Envío a domicilio",
+        description: "Costo de envío para pedidos menores a 3 cervezas",
+        picture_url: "https://via.placeholder.com/150",
+        category_id: "shipping",
+        quantity: 1,
+        currency_id: "ARS",
+        unit_price: shippingCost,
+      });
+
+      totalAmount += shippingCost;
+    }
+
     // Aplicar descuento si existe
     if (discountInfo && discountInfo.valid) {
       const originalTotal = totalAmount;
@@ -128,6 +144,28 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
     // Crear orden en la base de datos
     const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+    // Preparar items para la orden (incluir envío si aplica)
+    const orderItems = cartItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      price: item.price,
+      quantity: item.quantity,
+      beerType: item.beerType || null, // Guardar el tipo de cerveza seleccionado
+    }));
+
+    // Agregar envío como item si tiene costo
+    if (shippingCost && shippingCost > 0) {
+      orderItems.push({
+        id: "shipping",
+        name: "Envío a domicilio",
+        type: "shipping",
+        price: shippingCost,
+        quantity: 1,
+        beerType: null,
+      });
+    }
+
     const newOrder = new Order({
       id: orderId,
       customer: {
@@ -140,14 +178,7 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
       date: new Date(),
       status: "pending",
       total: totalAmount,
-      items: cartItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        type: item.type,
-        price: item.price,
-        quantity: item.quantity,
-        beerType: item.beerType || null, // Guardar el tipo de cerveza seleccionado
-      })),
+      items: orderItems,
       paymentMethod: "mercadopago",
       paymentStatus: "pending",
       deliveryTime: shippingInfo.deliveryTime || null,
@@ -158,6 +189,7 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
           ? totalAmount * (discountInfo.value / 100)
           : discountInfo.value
         : 0,
+      shippingCost: shippingCost || 0, // Agregar campo específico para costo de envío
       trackingSteps: [
         {
           status: "Pedido recibido",
@@ -218,6 +250,27 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
     const result = await preference.create({ body: preferenceData });
 
     // Crear registro de pago inicial
+    const paymentItems = cartItems.map((item) => ({
+      id: item.id,
+      name: item.name || item.title,
+      type: item.type,
+      quantity: item.quantity || 1,
+      price: item.price,
+      beerType: item.beerType || null, // Guardar el tipo de cerveza
+    }));
+
+    // Agregar envío al registro de pagos si aplica
+    if (shippingCost && shippingCost > 0) {
+      paymentItems.push({
+        id: "shipping",
+        name: "Envío a domicilio",
+        type: "shipping",
+        quantity: 1,
+        price: shippingCost,
+        beerType: null,
+      });
+    }
+
     const initialPayment = new Payments({
       userId,
       orderId: newOrder._id.toString(),
@@ -226,14 +279,7 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
       paymentMethod: "mercadopago",
       preferenceId: result.id,
       status: "pending",
-      items: cartItems.map((item) => ({
-        id: item.id,
-        name: item.name || item.title,
-        type: item.type,
-        quantity: item.quantity || 1,
-        price: item.price,
-        beerType: item.beerType || null, // Guardar el tipo de cerveza
-      })),
+      items: paymentItems,
       createdAt: new Date(),
     });
 
