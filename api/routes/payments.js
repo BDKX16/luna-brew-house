@@ -10,6 +10,12 @@ const Payments = require("../models/payment.js");
 const { Beer, Subscription } = require("../models/products");
 const Order = require("../models/order");
 const UserSubscription = require("../models/subscription");
+const User = require("../models/user");
+
+// Email service import
+const emailService = require("../infraestructure/services/emailService");
+const adminNotificationService = require("../infraestructure/services/adminNotificationService");
+const { checkLowStock } = require("./products");
 
 // Set up MercadoPago credentials
 const client = new MercadoPagoConfig({
@@ -686,6 +692,14 @@ router.post("/payments/webhook", async (req, res) => {
               }
             }
           }
+
+          // Verificar stock bajo después de procesar los items
+          try {
+            const { checkLowStock } = require("./products");
+            await checkLowStock();
+          } catch (stockError) {
+            console.error("❌ Error al verificar stock bajo:", stockError);
+          }
         }
       } else if (
         ["rejected", "cancelled", "refunded", "charged_back"].includes(
@@ -693,9 +707,155 @@ router.post("/payments/webhook", async (req, res) => {
         )
       ) {
         order.paymentStatus = "failed";
+
+        // Notificar a administradores sobre problema de pago
+        try {
+          const user = await User.findById(order.customer.userId);
+          if (user) {
+            await adminNotificationService.notifyPaymentIssue({
+              orderId: order.id || order._id.toString(),
+              customerName: user.name,
+              customerEmail: user.email,
+              status: paymentInfo.status,
+              amount: order.total,
+              reason: paymentInfo.status_detail || "No especificado",
+            });
+            console.log(
+              `📧 Notificación de problema de pago enviada a administradores`
+            );
+          }
+        } catch (notificationError) {
+          console.error(
+            `❌ Error al notificar problema de pago:`,
+            notificationError
+          );
+        }
       }
 
       await order.save();
+
+      // Enviar email de confirmación de pedido si el pago fue aprobado
+      if (
+        (paymentInfo.status === "approved" ||
+          paymentInfo.status === "authorized") &&
+        order.status === "processing"
+      ) {
+        try {
+          // Obtener datos del usuario
+          const user = await User.findById(order.customer.userId);
+          if (user) {
+            // Preparar datos para el email
+            const orderData = {
+              customerName: user.name,
+              orderId: order.id || order._id.toString(),
+              orderDate: order.createdAt,
+              total: order.total,
+              items: order.items.map((item) => ({
+                name: item.name,
+                beerType: item.beerType,
+                price: item.price,
+                quantity: item.quantity || 1,
+              })),
+              shippingAddress: user.address,
+            };
+
+            // Verificar si hay suscripciones en el pedido
+            const hasSubscriptions = order.items.some(
+              (item) => item.type === "subscription"
+            );
+
+            if (hasSubscriptions) {
+              // Enviar email de confirmación de suscripción para cada suscripción
+              const subscriptionItems = order.items.filter(
+                (item) => item.type === "subscription"
+              );
+
+              for (const subItem of subscriptionItems) {
+                const subscriptionData = {
+                  customerName: user.name,
+                  subscriptionId: `sub_${Date.now()}_${order.customer.userId}`,
+                  planName: subItem.name,
+                  beerType: subItem.beerType || "golden",
+                  beerName: getBeerNameFromType(subItem.beerType || "golden"),
+                  liters: subItem.liters || 1,
+                  price: subItem.price,
+                  nextDelivery: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                  shippingAddress: user.address,
+                };
+
+                await emailService.sendSubscriptionConfirmation(
+                  user.email,
+                  subscriptionData
+                );
+                console.log(
+                  `✅ Email de confirmación de suscripción enviado a ${user.email}`
+                );
+              }
+            } else {
+              // Enviar email de confirmación de pedido regular
+              await emailService.sendOrderConfirmation(user.email, orderData);
+              console.log(
+                `✅ Email de confirmación de pedido enviado a ${user.email}`
+              );
+            }
+          }
+        } catch (emailError) {
+          console.error(
+            `❌ Error al enviar email de confirmación:`,
+            emailError
+          );
+          // No fallar el webhook si el email falla
+        }
+
+        // Enviar notificaciones a administradores
+        try {
+          const user = await User.findById(order.customer.userId);
+          if (user) {
+            // Verificar si hay suscripciones en el pedido
+            const hasSubscriptions = order.items.some(
+              (item) => item.type === "subscription"
+            );
+
+            if (hasSubscriptions) {
+              // Notificar nueva suscripción a administradores
+              const subscriptionItems = order.items.filter(
+                (item) => item.type === "subscription"
+              );
+              for (const subItem of subscriptionItems) {
+                const subscriptionNotificationData = {
+                  id: `sub_${Date.now()}_${order.customer.userId}`,
+                  name: subItem.name,
+                  beerType: subItem.beerType || "golden",
+                  beerName: getBeerNameFromType(subItem.beerType || "golden"),
+                  liters: subItem.liters || 1,
+                  price: subItem.price,
+                  nextDelivery: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                };
+
+                await adminNotificationService.notifyNewSubscription(
+                  subscriptionNotificationData,
+                  user
+                );
+                console.log(
+                  `✅ Notificación de nueva suscripción enviada a administradores`
+                );
+              }
+            } else {
+              // Notificar nuevo pedido a administradores
+              await adminNotificationService.notifyNewOrder(order, user);
+              console.log(
+                `✅ Notificación de nuevo pedido enviada a administradores`
+              );
+            }
+          }
+        } catch (adminNotificationError) {
+          console.error(
+            `❌ Error al enviar notificación a administradores:`,
+            adminNotificationError
+          );
+          // No fallar el webhook si la notificación administrativa falla
+        }
+      }
     } else {
       // Intentar búsqueda alternativa por campo 'id'
       const orderByField = await Order.findOne({ id: finalOrderId });
@@ -776,12 +936,155 @@ router.post("/payments/webhook", async (req, res) => {
                 }
               }
             }
+
+            // Verificar stock bajo después de procesar los items (búsqueda alt)
+            try {
+              const { checkLowStock } = require("./products");
+              await checkLowStock();
+            } catch (stockError) {
+              console.error(
+                "❌ Error al verificar stock bajo (búsqueda alt):",
+                stockError
+              );
+            }
           }
         } else {
           orderByField.paymentStatus = "failed";
         }
 
         await orderByField.save();
+
+        // Enviar email de confirmación de pedido si el pago fue aprobado (búsqueda alternativa)
+        if (
+          (paymentInfo.status === "approved" ||
+            paymentInfo.status === "authorized") &&
+          orderByField.status === "processing"
+        ) {
+          try {
+            // Obtener datos del usuario
+            const user = await User.findById(orderByField.customer.userId);
+            if (user) {
+              // Preparar datos para el email
+              const orderData = {
+                customerName: user.name,
+                orderId: orderByField.id || orderByField._id.toString(),
+                orderDate: orderByField.createdAt,
+                total: orderByField.total,
+                items: orderByField.items.map((item) => ({
+                  name: item.name,
+                  beerType: item.beerType,
+                  price: item.price,
+                  quantity: item.quantity || 1,
+                })),
+                shippingAddress: user.address,
+              };
+
+              // Verificar si hay suscripciones en el pedido
+              const hasSubscriptions = orderByField.items.some(
+                (item) => item.type === "subscription"
+              );
+
+              if (hasSubscriptions) {
+                // Enviar email de confirmación de suscripción para cada suscripción
+                const subscriptionItems = orderByField.items.filter(
+                  (item) => item.type === "subscription"
+                );
+
+                for (const subItem of subscriptionItems) {
+                  const subscriptionData = {
+                    customerName: user.name,
+                    subscriptionId: `sub_${Date.now()}_${
+                      orderByField.customer.userId
+                    }`,
+                    planName: subItem.name,
+                    beerType: subItem.beerType || "golden",
+                    beerName: getBeerNameFromType(subItem.beerType || "golden"),
+                    liters: subItem.liters || 1,
+                    price: subItem.price,
+                    nextDelivery: new Date(
+                      Date.now() + 30 * 24 * 60 * 60 * 1000
+                    ),
+                    shippingAddress: user.address,
+                  };
+
+                  await emailService.sendSubscriptionConfirmation(
+                    user.email,
+                    subscriptionData
+                  );
+                  console.log(
+                    `✅ Email de confirmación de suscripción enviado a ${user.email} (búsqueda alt)`
+                  );
+                }
+              } else {
+                // Enviar email de confirmación de pedido regular
+                await emailService.sendOrderConfirmation(user.email, orderData);
+                console.log(
+                  `✅ Email de confirmación de pedido enviado a ${user.email} (búsqueda alt)`
+                );
+              }
+            }
+          } catch (emailError) {
+            console.error(
+              `❌ Error al enviar email de confirmación (búsqueda alt):`,
+              emailError
+            );
+            // No fallar el webhook si el email falla
+          }
+
+          // Enviar notificaciones a administradores (búsqueda alternativa)
+          try {
+            const user = await User.findById(orderByField.customer.userId);
+            if (user) {
+              // Verificar si hay suscripciones en el pedido
+              const hasSubscriptions = orderByField.items.some(
+                (item) => item.type === "subscription"
+              );
+
+              if (hasSubscriptions) {
+                // Notificar nueva suscripción a administradores
+                const subscriptionItems = orderByField.items.filter(
+                  (item) => item.type === "subscription"
+                );
+                for (const subItem of subscriptionItems) {
+                  const subscriptionNotificationData = {
+                    id: `sub_${Date.now()}_${orderByField.customer.userId}`,
+                    name: subItem.name,
+                    beerType: subItem.beerType || "golden",
+                    beerName: getBeerNameFromType(subItem.beerType || "golden"),
+                    liters: subItem.liters || 1,
+                    price: subItem.price,
+                    nextDelivery: new Date(
+                      Date.now() + 30 * 24 * 60 * 60 * 1000
+                    ),
+                  };
+
+                  await adminNotificationService.notifyNewSubscription(
+                    subscriptionNotificationData,
+                    user
+                  );
+                  console.log(
+                    `✅ Notificación de nueva suscripción enviada a administradores (búsqueda alt)`
+                  );
+                }
+              } else {
+                // Notificar nuevo pedido a administradores
+                await adminNotificationService.notifyNewOrder(
+                  orderByField,
+                  user
+                );
+                console.log(
+                  `✅ Notificación de nuevo pedido enviada a administradores (búsqueda alt)`
+                );
+              }
+            }
+          } catch (adminNotificationError) {
+            console.error(
+              `❌ Error al enviar notificación a administradores (búsqueda alt):`,
+              adminNotificationError
+            );
+            // No fallar el webhook si la notificación administrativa falla
+          }
+        }
       }
     }
 

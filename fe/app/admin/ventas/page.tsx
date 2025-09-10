@@ -61,6 +61,7 @@ import {
   updateOrderDelivery,
   cancelOrder,
   getAdminOrderStats,
+  sendDeliveryScheduleEmail,
 } from "@/services/private";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 
@@ -274,16 +275,29 @@ export default function VentasPage() {
   };
 
   // Función para enviar email al cliente
-  const handleSendEmail = () => {
+  const handleSendEmail = async () => {
     if (!selectedOrder) return;
 
-    // En una implementación real, aquí se enviaría el email
-    // Para esta simulación, solo mostraremos un mensaje de éxito
-    toast({
-      title: "Email enviado",
-      description: `Se ha enviado un email a ${selectedOrder.customer.email} para que seleccione su horario de entrega preferido`,
-    });
-    setIsEmailDialogOpen(false);
+    try {
+      const response = await callEndpoint(
+        sendDeliveryScheduleEmail(selectedOrder)
+      );
+
+      if (response && response.data) {
+        toast({
+          title: "Email enviado",
+          description: `Se ha enviado un email a ${selectedOrder.customer.email} para que seleccione su horario de entrega preferido`,
+        });
+        setIsEmailDialogOpen(false);
+      }
+    } catch (error) {
+      console.error("Error al enviar email:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo enviar el email. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Función para cambiar el estado del pedido

@@ -23,7 +23,8 @@
   },
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon api/index.js"
+    "dev": "nodemon api/index.js",
+    "testemail": "node test-email.js welcome lunabrewhouse@gmail.com"
   },
   "devDependencies": {
     "nodemon": "^3.1.7",

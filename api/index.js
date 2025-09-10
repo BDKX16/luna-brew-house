@@ -30,6 +30,7 @@ app.use("/api/admin", require("./routes/recipes.js"));
 app.use("/api/admin", require("./routes/admin-payments.js"));
 app.use("/api/admin", require("./routes/admin-products.js"));
 app.use("/api/admin", require("./routes/configuration.js"));
+app.use("/api/admin/emails", require("./routes/admin-emails.js"));
 
 module.exports = app;
 

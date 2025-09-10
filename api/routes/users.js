@@ -5,19 +5,11 @@ const bcrypt = require("bcrypt");
 const { checkAuth } = require("../middlewares/authentication");
 
 //models import
-
 const User = require("../models/user.js");
-const nodemailer = require("nodemailer");
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: "confiplant@gmail.com",
-    pass: "zzgujcwwsctyhcab",
-  },
-});
+// Email service import
+const emailService = require("../infraestructure/services/emailService");
+const adminNotificationService = require("../infraestructure/services/adminNotificationService");
 
 //POST -> req.body
 //GET -> req.query
@@ -89,24 +81,40 @@ router.post("/register", async (req, res) => {
       phone: phone,
       address: address,
     };
-    /** 
-    try {
-      const info = await transporter.sendMail({
-        from: '"Almengala👻" <almengala@gmail.com>', // sender address
-        to: newUser.email, // list of receivers
-        subject: "Confirmacion de correo ✔", // Subject line
-        text:
-          "Gracias por registrarte " + newUser.name ||
-          "" + ", por favor confirma tu email", // plain text body
-        html:
-          "Gracias por registrarte " + newUser.name ||
-          "" + ", por favor confirma tu email", // html body
-      });
-    } catch (error) {
-      console.error(error);
-    }
-*/
+
+    // Crear el usuario en la base de datos
     const user = await User.create(newUser);
+
+    // Enviar email de bienvenida
+    try {
+      await emailService.sendWelcomeEmail(user.email, {
+        name: user.name,
+      });
+      console.log(`✅ Email de bienvenida enviado a ${user.email}`);
+    } catch (emailError) {
+      console.error(
+        `❌ Error al enviar email de bienvenida a ${user.email}:`,
+        emailError
+      );
+      // No fallar el registro si el email falla
+    }
+
+    // Notificar a administradores sobre nuevo usuario
+    try {
+      await adminNotificationService.notifyNewUser({
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+      });
+      console.log(`📧 Notificación de nuevo usuario enviada a administradores`);
+    } catch (notificationError) {
+      console.error(
+        `❌ Error al notificar nuevo usuario a administradores:`,
+        notificationError
+      );
+      // No fallar el registro si la notificación falla
+    }
 
     user.set("password", undefined, { strict: false });
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const { checkAuth, checkRole } = require("../middlewares/authentication");
 const trackInteraction = require("../middlewares/interaction-tracker");
 const { Beer, Subscription, Discount } = require("../models/products");
+const adminNotificationService = require("../infraestructure/services/adminNotificationService");
 
 /**
  * ENDPOINTS PÚBLICOS PARA TIENDA
@@ -210,4 +211,32 @@ router.get("/top-products", checkAuth, async (req, res) => {
   }
 });
 
+/**
+ * Función para verificar stock bajo y notificar administradores
+ * Se ejecuta después de cada venta
+ */
+async function checkLowStock() {
+  try {
+    const beers = await Beer.find({ nullDate: null }).select("id name stock");
+    const lowStockBeers = beers.filter((beer) => beer.stock <= 5); // Umbral de stock bajo: 5 unidades
+
+    if (lowStockBeers.length > 0) {
+      const stockData = lowStockBeers.map((beer) => ({
+        name: beer.name,
+        stock: beer.stock,
+        minStock: 5,
+      }));
+
+      await adminNotificationService.notifyLowStock(stockData);
+      console.log(
+        `📦 Notificación de stock bajo enviada para ${lowStockBeers.length} productos`
+      );
+    }
+  } catch (error) {
+    console.error("❌ Error al verificar stock bajo:", error);
+  }
+}
+
+// Exportar la función para uso en otros módulos
 module.exports = router;
+module.exports.checkLowStock = checkLowStock;

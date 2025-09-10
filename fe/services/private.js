@@ -596,6 +596,41 @@ export const getAdminOrderStats = (period = "month") => {
   };
 };
 
+// Enviar email para solicitar fecha de entrega
+export const sendDeliveryScheduleEmail = (orderData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return;
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL +
+          "/admin/emails/send/delivery-schedule",
+        {
+          email: orderData.customer.email,
+          orderId: orderData.id,
+          customerName: orderData.customer.name,
+          orderData: {
+            orderId: orderData.id,
+            orderDate: orderData.date,
+            total: orderData.total,
+            items: orderData.items,
+          },
+        },
+        headers,
+        { signal: controller.signal }
+      )
+      .catch((error) => {
+        notifyError(error);
+      }),
+    controller,
+  };
+};
+
 /**********
  * GESTIÓN DE SUSCRIPCIONES DE USUARIOS
  ************/
