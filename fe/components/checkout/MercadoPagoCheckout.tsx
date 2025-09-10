@@ -23,10 +23,10 @@ interface CartItem {
 
 interface User {
   id: string;
+  name: string;
   email: string;
-  firstName?: string;
-  lastName?: string;
   phone?: string;
+  address?: string;
 }
 
 interface Discount {
@@ -129,11 +129,11 @@ export default function MercadoPagoCheckout({
           price: item.type === "beer" ? item.product.price : item.product.price,
         })),
         shippingInfo: {
-          firstName: user.firstName || "Usuario",
-          lastName: user.lastName || "Luna Brew",
+          firstName: user.name.split(' ')[0] || "Usuario",
+          lastName: user.name.split(' ').slice(1).join(' ') || "Cliente",
           email: user.email,
-          phone: user.phone || "+54 11 1234-5678",
-          address: "Dirección de envío",
+          phone: user.phone || "",
+          address: user.address || "",
           city: "Buenos Aires",
           postalCode: "1000",
         },

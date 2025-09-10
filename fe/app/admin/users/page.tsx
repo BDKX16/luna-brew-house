@@ -98,10 +98,9 @@ interface User {
   _id: string;
   name: string;
   email: string;
-  firstName?: string;
-  lastName?: string;
   phone?: string;
   address?: string;
+  address2?: string;
   role: string;
   confirmed: boolean;
   createdAt: string;
@@ -286,11 +285,7 @@ export default function UsersManagementPage() {
       filtered = filtered.filter(
         (user) =>
           user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (user.firstName &&
-            user.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (user.lastName &&
-            user.lastName.toLowerCase().includes(searchTerm.toLowerCase()))
+          user.email?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       console.log("After search filter:", filtered); // Debug log
     }
@@ -893,11 +888,6 @@ export default function UsersManagementPage() {
                           <div className="flex items-center gap-2">
                             <div>
                               <div className="font-medium">{user.name}</div>
-                              {(user.firstName || user.lastName) && (
-                                <div className="text-sm text-muted-foreground">
-                                  {user.firstName} {user.lastName}
-                                </div>
-                              )}
                             </div>
                           </div>
                         </TableCell>

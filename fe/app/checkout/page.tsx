@@ -1909,8 +1909,7 @@ export default function CheckoutPage() {
                             <p className="text-green-800">
                               Sesión iniciada como{" "}
                               <span className="font-bold">
-                                {user?.firstName} {user?.lastName} (
-                                {user?.email})
+                                {user?.name} ({user?.email})
                               </span>
                             </p>
                           </div>

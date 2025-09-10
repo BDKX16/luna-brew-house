@@ -11,8 +11,6 @@ const userSchema = new Schema({
   role: { type: String, required: [true], default: "user" },
   nullDate: { type: Date, required: false, default: null },
   createdAt: { type: Date, required: true, default: Date.now },
-  firstName: { type: String, required: false },
-  lastName: { type: String, required: false },
   phone: { type: String, required: false },
   address: { type: String, required: false },
   address2: { type: String, required: false },

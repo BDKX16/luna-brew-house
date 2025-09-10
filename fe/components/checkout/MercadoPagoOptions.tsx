@@ -91,11 +91,11 @@ export default function MercadoPagoOptions({
     }));
 
     const shippingInfo = {
-      firstName: user?.firstName || "Usuario",
-      lastName: user?.lastName || "Luna Brew",
+      firstName: user?.name?.split(' ')[0] || "Usuario",
+      lastName: user?.name?.split(' ').slice(1).join(' ') || "Cliente",
       email: user?.email || "user@example.com",
-      phone: user?.phone || "+54 11 1234-5678",
-      address: deliveryAddress || user?.address || "Dirección de envío",
+      phone: user?.phone || "",
+      address: deliveryAddress || user?.address || "",
       city: "Buenos Aires",
       postalCode: "1000",
       deliveryTime: null,
@@ -329,10 +329,10 @@ export default function MercadoPagoOptions({
         paymentMethod: "cash",
         deliveryMethod: "pickup", // Retiro en local
         shippingInfo: {
-          firstName: user?.firstName || "Usuario",
-          lastName: user?.lastName || "Luna Brew",
+          firstName: user?.name?.split(' ')[0] || "Usuario",
+          lastName: user?.name?.split(' ').slice(1).join(' ') || "Cliente",
           email: user?.email || "user@example.com",
-          phone: user?.phone || "+54 11 1234-5678",
+          phone: user?.phone || "",
           address: "Retiro en local",
           city: "Buenos Aires",
           postalCode: "1000",
