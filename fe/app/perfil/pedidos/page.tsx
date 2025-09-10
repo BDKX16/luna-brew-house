@@ -650,57 +650,23 @@ export default function UserOrdersPage() {
       count: (orders ?? []).filter(
         (o) =>
           o.status?.toLowerCase() === "pending" ||
-          o.status?.toLowerCase() === "pendiente"
-      ).length,
-    },
-    {
-      value: "confirmed",
-      label: "Confirmados",
-      count: (orders ?? []).filter(
-        (o) =>
+          o.status?.toLowerCase() === "pendiente" ||
           o.status?.toLowerCase() === "confirmed" ||
-          o.status?.toLowerCase() === "confirmado"
-      ).length,
-    },
-    {
-      value: "processing",
-      label: "En preparación",
-      count: (orders ?? []).filter(
-        (o) =>
+          o.status?.toLowerCase() === "confirmado" ||
           o.status?.toLowerCase() === "processing" ||
           o.status?.toLowerCase() === "procesando" ||
-          o.status?.toLowerCase() === "en preparación"
-      ).length,
-    },
-    {
-      value: "shipping",
-      label: "En camino",
-      count: (orders ?? []).filter(
-        (o) =>
+          o.status?.toLowerCase() === "en preparación" ||
           o.status?.toLowerCase() === "shipped" ||
           o.status?.toLowerCase() === "shipping" ||
           o.status?.toLowerCase() === "en camino" ||
-          o.status?.toLowerCase() === "enviado"
-      ).length,
-    },
-    {
-      value: "ready_pickup",
-      label: "Listo para recoger",
-      count: (orders ?? []).filter(
-        (o) =>
+          o.status?.toLowerCase() === "enviado" ||
           o.status?.toLowerCase() === "ready_pickup" ||
-          o.status?.toLowerCase() === "listo para recoger"
-      ).length,
-    },
-    {
-      value: "waiting_schedule",
-      label: "Esperando horario",
-      count: (orders ?? []).filter(
-        (o) =>
+          o.status?.toLowerCase() === "listo para recoger" ||
           o.status?.toLowerCase() === "waiting_schedule" ||
           o.status?.toLowerCase() === "esperando horario"
       ).length,
     },
+
     {
       value: "delivered",
       label: "Entregados",

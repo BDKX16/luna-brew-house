@@ -345,9 +345,7 @@ export default function Home() {
                   className="bg-amber-600 hover:bg-amber-700 rounded-full"
                   asChild
                 >
-                  <Link href="#cervezas">
-                    Nuestras Cervezas
-                  </Link>
+                  <Link href="#cervezas">Nuestras Cervezas</Link>
                 </Button>
                 <Button
                   variant="outline"
@@ -355,9 +353,7 @@ export default function Home() {
                   className="rounded-full bg-white/10 text-white border-white hover:bg-white/20 hover:text-white"
                   asChild
                 >
-                  <Link href="#historia">
-                    Nuestra Historia
-                  </Link>
+                  <Link href="#historia">Nuestra Historia</Link>
                 </Button>
               </div>
             </div>
