@@ -309,7 +309,7 @@ class EmailService {
         
         <div class="footer">
           <p><strong>Luna Brew House</strong></p>
-          <p>📍 Dirección de la cervecería</p>
+          <p>📍 Avenida Pedro Luro 2514</p>
           <p>📞 +54 (223) 634-4785 | ✉️ lunabrewhouse@gmail.com</p>
           
           <div class="social-links">
