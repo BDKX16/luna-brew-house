@@ -952,18 +952,16 @@ export default function CheckoutPage() {
               >
                 {qualifiesForFreeShipping() ? (
                   <span>
-                    <span className="font-bold">¡Envío GRATIS!</span> 
-                    {cart.some((item) => item.type === "subscription") ? (
-                      " Tienes una suscripción en tu carrito."
-                    ) : (
-                      ` Tienes ${getTotalBeerQuantity()} cervezas en tu carrito.`
-                    )}
+                    <span className="font-bold">¡Envío GRATIS!</span>
+                    {cart.some((item) => item.type === "subscription")
+                      ? " Tienes una suscripción en tu carrito."
+                      : ` Tienes ${getTotalBeerQuantity()} cervezas en tu carrito.`}
                   </span>
                 ) : (
                   <span>
                     <span className="font-bold">Envío gratis</span> a partir de
-                    3 cervezas o con cualquier suscripción. Tienes {getTotalBeerQuantity()}/3 cervezas en tu
-                    carrito.
+                    3 cervezas o con cualquier suscripción. Tienes{" "}
+                    {getTotalBeerQuantity()}/3 cervezas en tu carrito.
                   </span>
                 )}
               </AlertDescription>

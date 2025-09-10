@@ -28,6 +28,7 @@ router.get(
       const totalUserActive = await UserSubscription.countDocuments({
         userId,
         nullDate: null,
+        status: "active",
       });
       console.log(`- Total suscripciones del usuario: ${totalUser}`);
       console.log(
@@ -37,6 +38,7 @@ router.get(
       const userSubscriptions = await UserSubscription.find({
         userId,
         nullDate: null,
+        status: "active", // Solo mostrar suscripciones activas
       }).sort({ startDate: -1 });
 
       console.log(`- Suscripciones retornadas: ${userSubscriptions.length}`);
@@ -52,6 +54,37 @@ router.get(
     } catch (error) {
       console.error("Error al obtener suscripciones:", error);
       res.status(500).json({ error: "Error al obtener las suscripciones" });
+    }
+  }
+);
+
+// Obtener historial completo de suscripciones del usuario (incluyendo canceladas)
+router.get(
+  "/my-subscriptions/history",
+  checkAuth,
+  trackInteraction("landing", true),
+  async (req, res) => {
+    try {
+      const userId = req.userData._id;
+
+      console.log(
+        "🔍 Consultando historial completo de suscripciones del usuario:",
+        userId
+      );
+
+      const userSubscriptions = await UserSubscription.find({
+        userId,
+        nullDate: null,
+      }).sort({ startDate: -1 });
+
+      console.log(`- Suscripciones en historial: ${userSubscriptions.length}`);
+
+      res.status(200).json({ subscriptions: userSubscriptions });
+    } catch (error) {
+      console.error("Error al obtener historial de suscripciones:", error);
+      res
+        .status(500)
+        .json({ error: "Error al obtener el historial de suscripciones" });
     }
   }
 );
