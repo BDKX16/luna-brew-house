@@ -433,7 +433,7 @@ class EmailService {
       <div style="text-align: center;">
         <a href="${
           process.env.FRONT_URL || "https://lunabrewhouse.com"
-        }/pedidos" class="button">
+        }/perfil/pedidos" class="button">
           Seguir mi Pedido
         </a>
       </div>
@@ -604,7 +604,7 @@ class EmailService {
       <div style="text-align: center;">
         <a href="${
           process.env.FRONT_URL || "https://lunabrewhouse.com"
-        }/pedidos/${orderData.orderId}" class="button">
+        }/perfil/pedidos" class="button">
           Ver Detalles del Pedido
         </a>
       </div>
