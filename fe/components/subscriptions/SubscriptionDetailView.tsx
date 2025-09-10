@@ -54,7 +54,11 @@ export default function SubscriptionDetailView({
     }).format(price);
   };
 
-  const getFrequencyIcon = (frequency: string) => {
+  const getFrequencyIcon = (frequency: string | undefined | null) => {
+    if (!frequency) {
+      return <Calendar className="h-4 w-4" />;
+    }
+
     switch (frequency.toLowerCase()) {
       case "semanal":
       case "weekly":

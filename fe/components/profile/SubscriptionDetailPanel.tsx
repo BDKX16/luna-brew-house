@@ -7,13 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -38,16 +31,26 @@ import {
 
 interface SubscriptionDetailPanelProps {
   subscription: {
+    _id: string;
     id: string;
-    planName: string;
-    planType: string;
+    userId: string;
+    subscriptionId: string;
+    name: string;
+    beerType: string;
+    beerName: string;
     liters: number;
     price: number;
     status: string;
     startDate: string;
-    nextDelivery?: string;
-    endDate?: string;
-    beerType?: string;
+    nextDelivery: string;
+    deliveries: any[];
+    billingInfo: {
+      orderId: string;
+      paymentId: number;
+      paymentDate: string;
+    };
+    __v?: number;
+    nullDate?: null;
     deliveryFrequency: string;
     deliveriesLeft?: number;
     totalDeliveries?: number;
@@ -59,6 +62,7 @@ interface SubscriptionDetailPanelProps {
 }
 
 const beerTypes = [
+  { value: "golden", label: "Golden Ale" },
   { value: "ipa", label: "IPA" },
   { value: "lager", label: "Lager" },
   { value: "stout", label: "Stout" },
@@ -70,17 +74,16 @@ const beerTypes = [
 
 export default function SubscriptionDetailPanel({
   subscription,
-  onBeerTypeUpdate,
   onCancelSubscription,
 }: SubscriptionDetailPanelProps) {
   const router = useRouter();
-  const [selectedBeerType, setSelectedBeerType] = useState(
-    subscription.beerType || ""
-  );
-  const [isUpdating, setIsUpdating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string | undefined | null) => {
+    if (!status) {
+      return <Badge variant="secondary">Sin estado</Badge>;
+    }
+
     switch (status.toLowerCase()) {
       case "active":
       case "activa":
@@ -111,6 +114,10 @@ export default function SubscriptionDetailPanel({
     }
   };
 
+  const isActiveSubscription = (status: string | undefined | null) => {
+    return status && status.toLowerCase() === "active";
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("es-ES", {
       year: "numeric",
@@ -125,19 +132,6 @@ export default function SubscriptionDetailPanel({
       currency: "ARS",
       minimumFractionDigits: 0,
     }).format(price);
-  };
-
-  const handleBeerTypeUpdate = async () => {
-    if (!selectedBeerType || selectedBeerType === subscription.beerType) return;
-
-    setIsUpdating(true);
-    try {
-      await onBeerTypeUpdate(selectedBeerType);
-    } catch (error) {
-      console.error("Error updating beer type:", error);
-    } finally {
-      setIsUpdating(false);
-    }
   };
 
   const handleCancelSubscription = async () => {
@@ -173,9 +167,12 @@ export default function SubscriptionDetailPanel({
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-2xl">
-                    {subscription.planName}
+                    {subscription.name}
                   </CardTitle>
                   {getStatusBadge(subscription.status)}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  ID: {subscription.subscriptionId}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -192,9 +189,9 @@ export default function SubscriptionDetailPanel({
                   <div className="flex items-center gap-3">
                     <Calendar className="h-5 w-5 text-amber-600" />
                     <div>
-                      <p className="font-medium">Frecuencia</p>
+                      <p className="font-medium">Tipo de cerveza</p>
                       <p className="text-sm text-gray-600 capitalize">
-                        {subscription.deliveryFrequency}
+                        {subscription.beerName}
                       </p>
                     </div>
                   </div>
@@ -207,19 +204,6 @@ export default function SubscriptionDetailPanel({
                       </p>
                     </div>
                   </div>
-                  {subscription.deliveriesLeft &&
-                    subscription.totalDeliveries && (
-                      <div className="flex items-center gap-3">
-                        <CheckCircle className="h-5 w-5 text-amber-600" />
-                        <div>
-                          <p className="font-medium">Entregas restantes</p>
-                          <p className="text-sm text-gray-600">
-                            {subscription.deliveriesLeft} de{" "}
-                            {subscription.totalDeliveries}
-                          </p>
-                        </div>
-                      </div>
-                    )}
                 </div>
 
                 <Separator />
@@ -231,18 +215,50 @@ export default function SubscriptionDetailPanel({
                       <span className="font-medium">Inicio:</span>{" "}
                       {formatDate(subscription.startDate)}
                     </div>
-                    {subscription.nextDelivery && (
-                      <div>
-                        <span className="font-medium">Próxima entrega:</span>{" "}
-                        {formatDate(subscription.nextDelivery)}
+                    <div>
+                      <span className="font-medium">Próxima entrega:</span>{" "}
+                      {formatDate(subscription.nextDelivery)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Información de facturación */}
+                {subscription.billingInfo && (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <h4 className="font-medium">Información de pago</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium">ID de pago:</span>{" "}
+                          {subscription.billingInfo.paymentId}
+                        </div>
+                        <div>
+                          <span className="font-medium">Fecha de pago:</span>{" "}
+                          {formatDate(subscription.billingInfo.paymentDate)}
+                        </div>
+                        <div>
+                          <span className="font-medium">ID de pedido:</span>{" "}
+                          {subscription.billingInfo.orderId}
+                        </div>
                       </div>
-                    )}
-                    {subscription.endDate && (
-                      <div>
-                        <span className="font-medium">Fin:</span>{" "}
-                        {formatDate(subscription.endDate)}
-                      </div>
-                    )}
+                    </div>
+                  </>
+                )}
+
+                {/* Información de entregas */}
+                <Separator />
+                <div className="space-y-3">
+                  <h4 className="font-medium">Entregas</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">Entregas realizadas:</span>{" "}
+                      {subscription.deliveries.length}
+                    </div>
+                    <div>
+                      <span className="font-medium">Estado:</span>{" "}
+                      <span className="capitalize">{subscription.status}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -259,62 +275,6 @@ export default function SubscriptionDetailPanel({
                 )}
               </CardContent>
             </Card>
-
-            {/* Configuración de tipo de cerveza */}
-            {subscription.status.toLowerCase() === "active" && (
-              <Card className="border-amber-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
-                    Configuración
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Tipo de cerveza preferido
-                    </label>
-                    <div className="flex gap-3">
-                      <Select
-                        value={selectedBeerType}
-                        onValueChange={setSelectedBeerType}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Selecciona un tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {beerTypes.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        onClick={handleBeerTypeUpdate}
-                        disabled={
-                          isUpdating ||
-                          !selectedBeerType ||
-                          selectedBeerType === subscription.beerType
-                        }
-                      >
-                        {isUpdating ? "Actualizando..." : "Actualizar"}
-                      </Button>
-                    </div>
-                    {subscription.beerType && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Actual:{" "}
-                        {
-                          beerTypes.find(
-                            (t) => t.value === subscription.beerType
-                          )?.label
-                        }
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           {/* Panel lateral */}
@@ -327,31 +287,31 @@ export default function SubscriptionDetailPanel({
               <CardContent className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span>Plan:</span>
-                  <span className="font-medium">{subscription.planType}</span>
+                  <span className="font-medium">{subscription.name}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Estado:</span>
                   <span className="capitalize">{subscription.status}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Precio mensual:</span>
+                  <span>Precio:</span>
                   <span className="font-medium">
                     {formatPrice(subscription.price)}
                   </span>
                 </div>
-                {subscription.paymentMethod && (
-                  <div className="flex justify-between text-sm">
-                    <span>Método de pago:</span>
-                    <span className="capitalize">
-                      {subscription.paymentMethod}
-                    </span>
-                  </div>
-                )}
+                <div className="flex justify-between text-sm">
+                  <span>Volumen:</span>
+                  <span className="font-medium">{subscription.liters}L</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Cerveza:</span>
+                  <span className="capitalize">{subscription.beerName}</span>
+                </div>
               </CardContent>
             </Card>
 
             {/* Acciones */}
-            {subscription.status.toLowerCase() === "active" && (
+            {isActiveSubscription(subscription.status) && (
               <Card className="border-red-200">
                 <CardHeader>
                   <CardTitle className="text-lg text-red-600 flex items-center gap-2">
@@ -367,8 +327,9 @@ export default function SubscriptionDetailPanel({
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
-                        variant="destructive"
-                        className="w-full"
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
                         disabled={isCancelling}
                       >
                         {isCancelling
@@ -380,9 +341,8 @@ export default function SubscriptionDetailPanel({
                       <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Esta acción cancelará permanentemente tu suscripción "
-                          {subscription.planName}". No podrás recuperarla una
-                          vez cancelada.
+                          Esta acción cancelará permanentemente tu suscripción
+                          al "{subscription.name}".
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

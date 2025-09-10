@@ -1182,7 +1182,7 @@ export default function ProfilePage() {
                         ))}
                       </div>
                       <div className="mt-4">
-                        <Link href="/suscripciones">
+                        <Link href="/#suscripciones">
                           <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0">
                             <Crown className="h-4 w-4 mr-2" />
                             Ver Planes de Suscripción

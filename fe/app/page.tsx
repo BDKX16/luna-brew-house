@@ -1074,7 +1074,7 @@ export default function Home() {
                 <li className="text-muted-foreground">
                   Av. Luro 2514, Mar del Plata
                 </li>
-                <li className="text-muted-foreground">+54 223 555-1234</li>
+                <li className="text-muted-foreground">+54 223 634-4785</li>
                 <li className="text-muted-foreground">
                   lunabrewhouse@gmail.com
                 </li>

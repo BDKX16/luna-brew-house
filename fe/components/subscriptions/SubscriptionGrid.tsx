@@ -50,7 +50,11 @@ export default function SubscriptionGrid({
     }).format(price);
   };
 
-  const getFeatureIcon = (feature: string) => {
+  const getFeatureIcon = (feature: string | undefined | null) => {
+    if (!feature) {
+      return <CheckCircle className="h-4 w-4 text-green-600" />;
+    }
+
     if (feature.toLowerCase().includes("envío")) {
       return <Package className="h-4 w-4 text-green-600" />;
     }

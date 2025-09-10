@@ -87,6 +87,7 @@ export default function MercadoPagoOptions({
       type: item.type,
       quantity: item.quantity,
       price: item.type === "beer" ? item.product.price : item.product.price,
+      beerType: item.type === "subscription" ? item.beerType : undefined, // Incluir beerType para suscripciones
     }));
 
     const shippingInfo = {

@@ -1543,6 +1543,56 @@ export const getUserOrders = (userId) => {
   };
 };
 
+// Obtener un pedido específico del usuario por ID
+export const getUserOrderById = (orderId) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .get(`${baseUrl}/users/orders/${orderId}`, {
+        ...headers,
+        signal: controller.signal,
+      })
+      .catch((error) => {
+        console.error("Error fetching user order:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
+// Actualizar horario de entrega de un pedido del usuario
+export const updateUserOrderDeliveryTime = (orderId, deliveryTime) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .patch(
+        `${baseUrl}/users/orders/${orderId}/delivery-time`,
+        { deliveryTime },
+        {
+          ...headers,
+          signal: controller.signal,
+        }
+      )
+      .catch((error) => {
+        console.error("Error updating delivery time:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
+
 // Actualizar estado de un usuario
 export const updateUserStatus = (userId, statusData) => {
   const controller = loadAbort();

@@ -375,6 +375,152 @@ router.get("/users/orders", checkAuth, async (req, res) => {
   }
 });
 
+// Obtener un pedido específico del usuario por ID
+router.get("/users/orders/:orderId", checkAuth, async (req, res) => {
+  try {
+    const userId = req.userData._id;
+    const orderId = req.params.orderId;
+    const Order = require("../models/order.js");
+
+    const order = await Order.findOne({
+      $or: [
+        { id: orderId, "customer.userId": userId },
+        { _id: orderId, "customer.userId": userId },
+      ],
+      nullDate: null,
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        status: "error",
+        message: "Pedido no encontrado",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: order,
+    });
+  } catch (error) {
+    console.error("Error fetching user order:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Error interno del servidor",
+      error: error.message,
+    });
+  }
+});
+
+// Actualizar horario de entrega de un pedido del usuario
+router.patch(
+  "/users/orders/:orderId/delivery-time",
+  checkAuth,
+  async (req, res) => {
+    try {
+      const userId = req.userData._id;
+      const orderId = req.params.orderId;
+      const { deliveryTime } = req.body;
+      const Order = require("../models/order.js");
+
+      // Validar datos de entrega
+      if (!deliveryTime || !deliveryTime.date || !deliveryTime.timeRange) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Datos de entrega no válidos. Se requiere fecha y rango horario.",
+        });
+      }
+
+      // Buscar el pedido del usuario
+      const order = await Order.findOne({
+        $or: [
+          { id: orderId, "customer.userId": userId },
+          { _id: orderId, "customer.userId": userId },
+        ],
+        nullDate: null,
+      });
+
+      if (!order) {
+        return res.status(404).json({
+          status: "error",
+          message: "Pedido no encontrado",
+        });
+      }
+
+      // Verificar que el pedido permita cambios de horario
+      if (order.status === "delivered" || order.status === "cancelled") {
+        return res.status(400).json({
+          status: "error",
+          message: `No se puede modificar la entrega de un pedido ${
+            order.status === "delivered" ? "ya entregado" : "cancelado"
+          }`,
+        });
+      }
+
+      // Verificar si ya tiene un horario programado y está muy cerca de la entrega
+      if (
+        order.deliveryTime &&
+        order.deliveryTime.date &&
+        order.deliveryTime.timeRange
+      ) {
+        const deliveryDate = new Date(order.deliveryTime.date);
+        const [startHour] = order.deliveryTime.timeRange
+          .split("-")[0]
+          .split(":");
+        deliveryDate.setHours(parseInt(startHour), 0, 0, 0);
+
+        const now = new Date();
+        const hoursDifference =
+          (deliveryDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        if (hoursDifference <= 1 && hoursDifference > 0) {
+          return res.status(400).json({
+            status: "error",
+            message:
+              "No se puede cambiar el horario de entrega cuando faltan menos de 1 hora para la entrega programada",
+          });
+        }
+      }
+
+      // Validar que el nuevo horario no esté muy cerca en el tiempo
+      const newDeliveryDate = new Date(deliveryTime.date);
+      const [newStartHour] = deliveryTime.timeRange.split("-")[0].split(":");
+      newDeliveryDate.setHours(parseInt(newStartHour), 0, 0, 0);
+
+      const now = new Date();
+      const newHoursDifference =
+        (newDeliveryDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (newHoursDifference <= 1) {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "No se puede programar una entrega con menos de 1 hora de anticipación",
+        });
+      }
+
+      // Actualizar información de entrega
+      order.deliveryTime = deliveryTime;
+      order.customerSelectedTime = true; // Indicar que el cliente ha seleccionado la hora
+
+      await order.save();
+
+      res.status(200).json({
+        status: "success",
+        message: "Horario de entrega actualizado con éxito",
+        data: order,
+      });
+    } catch (error) {
+      console.error("Error updating delivery time:", error);
+      res.status(500).json({
+        status: "error",
+        message: "Error interno del servidor",
+        error: error.message,
+      });
+    }
+  }
+);
+
 //**********************
 //**** ADMIN ROUTES ****
 //**********************

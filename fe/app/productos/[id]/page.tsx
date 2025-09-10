@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { getBeerById } from "@/services/public";
 import ProductView from "@/components/products/ProductView";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import useFetchAndLoad from "@/hooks/useFetchAndLoad";
 
-export default function ProductPage({ params }: { params: { id: string } }) {
+export default function ProductPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const resolvedParams = use(params);
   const [product, setProduct] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const { loading, callEndpoint } = useFetchAndLoad();
@@ -14,7 +19,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const fetchProductData = async () => {
       try {
-        const response = await callEndpoint(getBeerById(params.id));
+        const response = await callEndpoint(getBeerById(resolvedParams.id));
         if (response && response.data) {
           setProduct(response.data);
         } else {
@@ -27,7 +32,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     };
 
     fetchProductData();
-  }, [params.id, callEndpoint]);
+  }, [resolvedParams.id, callEndpoint]);
 
   if (loading) {
     return (

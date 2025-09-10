@@ -90,7 +90,7 @@ export default function UserSubscriptionsPage() {
               Explora nuestros planes de suscripción y disfruta de cervezas
               artesanales cada mes
             </p>
-            <Link href="/suscripciones">
+            <Link href="/#suscripciones">
               <Button>Ver planes de suscripción</Button>
             </Link>
           </div>

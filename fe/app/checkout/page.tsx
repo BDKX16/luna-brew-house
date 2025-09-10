@@ -597,8 +597,16 @@ export default function CheckoutPage() {
   // Función para calcular el costo de envío
   const calculateShippingCost = () => {
     const totalBeers = getTotalBeerQuantity();
-    // Envío gratis a partir de 3 cervezas
-    return totalBeers >= 3 ? 0 : 1500; // $1500 pesos de envío si es menos de 3 cervezas
+    const hasSubscription = cart.some((item) => item.type === "subscription");
+    // Envío gratis a partir de 3 cervezas o si hay una suscripción
+    return totalBeers >= 3 || hasSubscription ? 0 : 1500; // $1500 pesos de envío si es menos de 3 cervezas y no hay suscripción
+  };
+
+  // Función para verificar si califica para envío gratis
+  const qualifiesForFreeShipping = () => {
+    const totalBeers = getTotalBeerQuantity();
+    const hasSubscription = cart.some((item) => item.type === "subscription");
+    return totalBeers >= 3 || hasSubscription;
   };
 
   const hasSubscription = cart.some((item) => item.type === "subscription");
@@ -923,34 +931,38 @@ export default function CheckoutPage() {
           <div className="mb-6">
             <Alert
               className={`${
-                getTotalBeerQuantity() >= 3
+                qualifiesForFreeShipping()
                   ? "bg-green-50 border-green-200"
                   : "bg-amber-50 border-amber-200"
               }`}
             >
               <Truck
                 className={`h-4 w-4 ${
-                  getTotalBeerQuantity() >= 3
+                  qualifiesForFreeShipping()
                     ? "text-green-600"
                     : "text-amber-600"
                 }`}
               />
               <AlertDescription
                 className={
-                  getTotalBeerQuantity() >= 3
+                  qualifiesForFreeShipping()
                     ? "text-green-800"
                     : "text-amber-800"
                 }
               >
-                {getTotalBeerQuantity() >= 3 ? (
+                {qualifiesForFreeShipping() ? (
                   <span>
-                    <span className="font-bold">¡Envío GRATIS!</span> Tienes{" "}
-                    {getTotalBeerQuantity()} cervezas en tu carrito.
+                    <span className="font-bold">¡Envío GRATIS!</span> 
+                    {cart.some((item) => item.type === "subscription") ? (
+                      " Tienes una suscripción en tu carrito."
+                    ) : (
+                      ` Tienes ${getTotalBeerQuantity()} cervezas en tu carrito.`
+                    )}
                   </span>
                 ) : (
                   <span>
                     <span className="font-bold">Envío gratis</span> a partir de
-                    3 cervezas. Tienes {getTotalBeerQuantity()}/3 cervezas en tu
+                    3 cervezas o con cualquier suscripción. Tienes {getTotalBeerQuantity()}/3 cervezas en tu
                     carrito.
                   </span>
                 )}

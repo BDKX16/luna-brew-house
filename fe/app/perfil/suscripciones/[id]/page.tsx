@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   getUserSubscriptionById,
@@ -16,8 +16,9 @@ import { Button } from "@/components/ui/button";
 export default function SubscriptionDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const resolvedParams = use(params);
   const [subscription, setSubscription] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
@@ -26,15 +27,21 @@ export default function SubscriptionDetailPage({
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.push(`/auth/login?redirect=/perfil/suscripciones/${params.id}`);
+      router.push(
+        `/auth/login?redirect=/perfil/suscripciones/${resolvedParams.id}`
+      );
       return;
     }
 
     const fetchSubscriptionData = async () => {
       try {
-        const response = await callEndpoint(getUserSubscriptionById(params.id));
+        const response = await callEndpoint(
+          getUserSubscriptionById(resolvedParams.id)
+        );
+
+        console.log("Respuesta de la suscripción:", response);
         if (response && response.data) {
-          setSubscription(response.data);
+          setSubscription(response.data.subscription);
         } else {
           setError("No se pudo cargar la información de la suscripción");
         }
@@ -49,12 +56,12 @@ export default function SubscriptionDetailPage({
     };
 
     fetchSubscriptionData();
-  }, [params.id, isAuthenticated, router, callEndpoint]);
+  }, [resolvedParams.id, isAuthenticated, router, callEndpoint]);
 
   const handleBeerTypeUpdate = async (beerType: string, beerName: string) => {
     try {
       const response = await callEndpoint(
-        updateSubscriptionBeerType(params.id, beerType, beerName)
+        updateSubscriptionBeerType(resolvedParams.id, beerType, beerName)
       );
 
       if (response && response.data) {
@@ -76,7 +83,7 @@ export default function SubscriptionDetailPage({
   const handleCancelSubscription = async (reason: string) => {
     try {
       const response = await callEndpoint(
-        cancelUserSubscription(params.id, reason)
+        cancelUserSubscription(resolvedParams.id, reason)
       );
 
       if (response && response.data) {
