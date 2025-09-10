@@ -129,8 +129,8 @@ export default function MercadoPagoCheckout({
           price: item.type === "beer" ? item.product.price : item.product.price,
         })),
         shippingInfo: {
-          firstName: user.name.split(' ')[0] || "Usuario",
-          lastName: user.name.split(' ').slice(1).join(' ') || "Cliente",
+          firstName: user.name.split(" ")[0] || "Usuario",
+          lastName: user.name.split(" ").slice(1).join(" ") || "Cliente",
           email: user.email,
           phone: user.phone || "",
           address: user.address || "",

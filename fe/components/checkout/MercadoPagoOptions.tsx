@@ -91,8 +91,8 @@ export default function MercadoPagoOptions({
     }));
 
     const shippingInfo = {
-      firstName: user?.name?.split(' ')[0] || "Usuario",
-      lastName: user?.name?.split(' ').slice(1).join(' ') || "Cliente",
+      firstName: user?.name?.split(" ")[0] || "Usuario",
+      lastName: user?.name?.split(" ").slice(1).join(" ") || "Cliente",
       email: user?.email || "user@example.com",
       phone: user?.phone || "",
       address: deliveryAddress || user?.address || "",
@@ -329,8 +329,8 @@ export default function MercadoPagoOptions({
         paymentMethod: "cash",
         deliveryMethod: "pickup", // Retiro en local
         shippingInfo: {
-          firstName: user?.name?.split(' ')[0] || "Usuario",
-          lastName: user?.name?.split(' ').slice(1).join(' ') || "Cliente",
+          firstName: user?.name?.split(" ")[0] || "Usuario",
+          lastName: user?.name?.split(" ").slice(1).join(" ") || "Cliente",
           email: user?.email || "user@example.com",
           phone: user?.phone || "",
           address: "Retiro en local",
