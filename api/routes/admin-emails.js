@@ -217,9 +217,28 @@ router.post(
         });
       }
 
+      // Buscar la orden en la base de datos usando el ObjectId
+      const Order = require("../models/order");
+      const order = await Order.findById(orderId);
+
+      if (!order) {
+        return res.status(404).json({
+          error: "Orden no encontrada",
+        });
+      }
+
+      // Verificar que la orden no esté ya entregada o cancelada
+      if (order.status === "delivered" || order.status === "cancelled") {
+        return res.status(400).json({
+          error: `No se puede solicitar horario para una orden ${
+            order.status === "delivered" ? "ya entregada" : "cancelada"
+          }`,
+        });
+      }
+
       // Preparar datos para el email
       const deliveryRequestData = {
-        orderId,
+        orderId: orderData.orderId, // Usar el ID personalizado para mostrar al cliente
         customerName,
         orderDate: orderData.orderDate || new Date(),
         total: orderData.total,
@@ -232,15 +251,32 @@ router.post(
       );
 
       if (result.success) {
+        // Actualizar el estado de la orden a "waiting_schedule" si no está ya en un estado posterior
+        if (["pending", "confirmed", "processing"].includes(order.status)) {
+          order.status = "waiting_schedule";
+
+          // Agregar paso de tracking
+          order.trackingSteps = order.trackingSteps || [];
+          order.trackingSteps.push({
+            status: "Solicitud de horario enviada",
+            date: new Date(),
+            completed: true,
+            current: false,
+          });
+
+          await order.save();
+        }
+
         handleEmailSuccess(
           result,
           res,
-          `Email de programación de entrega enviado a ${customerName}`
+          `Email de programación de entrega enviado a ${customerName}. Estado de orden actualizado a "Esperando horario".`
         );
       } else {
         handleEmailError(new Error(result.error), res);
       }
     } catch (error) {
+      console.error("Error al enviar email de programación de entrega:", error);
       handleEmailError(error, res);
     }
   }

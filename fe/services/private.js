@@ -612,10 +612,10 @@ export const sendDeliveryScheduleEmail = (orderData) => {
           "/admin/emails/send/delivery-schedule",
         {
           email: orderData.customer.email,
-          orderId: orderData.id,
+          orderId: orderData._id, // Usar el ObjectId de MongoDB
           customerName: orderData.customer.name,
           orderData: {
-            orderId: orderData.id,
+            orderId: orderData.id, // Mantener el ID personalizado para mostrar al cliente
             orderDate: orderData.date,
             total: orderData.total,
             items: orderData.items,
