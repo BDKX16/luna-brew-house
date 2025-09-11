@@ -78,7 +78,7 @@ router.post("/payments/create-preference", checkAuth, async (req, res) => {
         items.push({
           id: product.id,
           title: product.name,
-          description: product.description || `Cerveza ${product.type}`,
+          description: `${product.name} - Cerveza ${product.type}`,
           picture_url: product.image || "https://via.placeholder.com/150",
           category_id: "beer",
           quantity: cartItem.quantity,
@@ -321,11 +321,24 @@ router.post("/payments/process-payment", checkAuth, async (req, res) => {
 
     const userId = req.userData._id;
 
+    // Determinar si buscar por id personalizado o _id de MongoDB
+    let searchQuery;
+    if (orderId.startsWith("ORD")) {
+      // ID personalizado - buscar por campo 'id'
+      searchQuery = {
+        id: orderId,
+        "customer.userId": userId,
+      };
+    } else {
+      // ObjectId de MongoDB - buscar por campo '_id'
+      searchQuery = {
+        _id: orderId,
+        "customer.userId": userId,
+      };
+    }
+
     // Buscar la orden
-    const order = await Order.findOne({
-      _id: orderId,
-      "customer.userId": userId,
-    });
+    const order = await Order.findOne(searchQuery);
 
     if (!order) {
       console.error("❌ Error: Orden no encontrada");

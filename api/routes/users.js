@@ -390,13 +390,25 @@ router.get("/users/orders/:orderId", checkAuth, async (req, res) => {
     const orderId = req.params.orderId;
     const Order = require("../models/order.js");
 
-    const order = await Order.findOne({
-      $or: [
-        { id: orderId, "customer.userId": userId },
-        { _id: orderId, "customer.userId": userId },
-      ],
-      nullDate: null,
-    });
+    // Determinar si buscar por id personalizado o _id de MongoDB
+    let searchQuery;
+    if (orderId.startsWith("ORD")) {
+      // ID personalizado - buscar por campo 'id'
+      searchQuery = {
+        id: orderId,
+        "customer.userId": userId,
+        nullDate: null,
+      };
+    } else {
+      // ObjectId de MongoDB - buscar por campo '_id'
+      searchQuery = {
+        _id: orderId,
+        "customer.userId": userId,
+        nullDate: null,
+      };
+    }
+
+    const order = await Order.findOne(searchQuery);
 
     if (!order) {
       return res.status(404).json({
@@ -439,14 +451,26 @@ router.patch(
         });
       }
 
+      // Determinar si buscar por id personalizado o _id de MongoDB
+      let searchQuery;
+      if (orderId.startsWith("ORD")) {
+        // ID personalizado - buscar por campo 'id'
+        searchQuery = {
+          id: orderId,
+          "customer.userId": userId,
+          nullDate: null,
+        };
+      } else {
+        // ObjectId de MongoDB - buscar por campo '_id'
+        searchQuery = {
+          _id: orderId,
+          "customer.userId": userId,
+          nullDate: null,
+        };
+      }
+
       // Buscar el pedido del usuario
-      const order = await Order.findOne({
-        $or: [
-          { id: orderId, "customer.userId": userId },
-          { _id: orderId, "customer.userId": userId },
-        ],
-        nullDate: null,
-      });
+      const order = await Order.findOne(searchQuery);
 
       if (!order) {
         return res.status(404).json({

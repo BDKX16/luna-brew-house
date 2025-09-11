@@ -77,9 +77,30 @@ export default function UserNav() {
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <Button variant="ghost" size="sm" asChild className="rounded-full">
-          <Link href="/auth/login">Iniciar sesión</Link>
-        </Button>
+        <>
+          {/* Versión desktop - botón completo */}
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="rounded-full hidden md:flex"
+          >
+            <Link href="/auth/login">Iniciar sesión</Link>
+          </Button>
+
+          {/* Versión mobile - solo icono */}
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="rounded-full md:hidden h-8 w-8 p-0"
+          >
+            <Link href="/auth/login">
+              <User className="h-4 w-4" />
+              <span className="sr-only">Iniciar sesión</span>
+            </Link>
+          </Button>
+        </>
       )}
     </div>
   );
