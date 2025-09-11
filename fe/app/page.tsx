@@ -332,12 +332,13 @@ export default function Home() {
           <div className="container relative z-10 flex flex-col lg:flex-row items-center gap-8 py-16 md:py-24">
             <div className="flex-1 space-y-6 text-white">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tighter text-shadow-lg">
-                Cerveza artesanal con el{" "}
-                <span className="text-amber-300">alma de Luna</span>
+                El alma de la montaña, la esencia del mar, el{" "}
+                <span className="text-amber-300">espíritu de Luna</span>
               </h1>
               <p className="text-lg text-white/90 text-shadow-sm max-w-xl">
-                Elaborada con pasión en Mar del Plata por una familia con raíces
-                vascas y el espíritu alegre de nuestra fiel compañera Luna.
+                De las montañas de Mendoza a la costa de Mar del Plata, nuestra
+                cerveza artesanal refleja la alegría y la lealtad de Luna,
+                nuestra compañera de viaje.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
@@ -379,16 +380,21 @@ export default function Home() {
                 Nuestra Pasión
               </h2>
               <p className="text-muted-foreground">
-                En Luna Brew House, cada cerveza cuenta una historia y cada
-                sorbo celebra la unión de la familia, la amistad y la pasión por
-                lo artesanal. Somos una familia apasionada por la cerveza y la
-                buena comida, residentes de la hermosa ciudad de Mar del Plata,
-                Argentina, conocida como "La Feliz".
+                En Luna Brew House, cada cerveza nace de un viaje y cuenta una
+                historia. Cada sorbo celebra algo: la familia, la amistad y la
+                pasión por lo que más nos gusta. Recorriendo Argentina
+                descubrimos paisajes y sabores únicos. En Mendoza, entre
+                montañas y microcervecerías escondidas, probamos cervezas que
+                parecían magia líquida: espuma tan cremosa que recordaba al pan
+                recién horneado y texturas que inspiraron nuestro camino.
               </p>
               <p className="text-muted-foreground">
-                Nuestra historia está profundamente arraigada en nuestras raíces
-                vascas, donde la tradición y el amor por lo artesanal siempre
-                han sido parte de nuestra vida.
+                Fue ahí cuando entendimos que queríamos compartir esa
+                experiencia con todos, transformando momentos y viajes en
+                sabores irrepetibles. Cada una de nuestras cervezas está
+                inspirada en un rincón del país, en una experiencia vivida, en
+                la emoción de levantar un vaso y sentir que dentro lleva una
+                parte de Argentina.
               </p>
             </div>
             <div className="relative h-[300px] overflow-hidden rounded-3xl">
@@ -410,9 +416,9 @@ export default function Home() {
                 Nuestras Cervezas
               </h2>
               <p className="text-muted-foreground max-w-3xl mx-auto">
-                Elaboradas con ingredientes seleccionados y el cariño que solo
-                una familia cervecera puede ofrecer. Cada variedad tiene su
-                propia personalidad, como Luna.
+                Elaboradas con ingredientes seleccionados regionales y de
+                calidad. Cada variedad tiene su origen y esta inspirado en
+                sabores que conocimos en distintas partes del pais.
               </p>
             </div>
 
@@ -620,11 +626,12 @@ export default function Home() {
                     Mayor concentración de antioxidantes
                   </h3>
                   <p className="text-muted-foreground mb-4">
-                    Nuestras cervezas contienen niveles más altos de polifenoles
-                    y flavonoides, compuestos antioxidantes que ayudan a
-                    combatir el estrés oxidativo y la inflamación. Estos
-                    antioxidantes pueden contribuir a la salud cardiovascular y
-                    a la prevención de enfermedades neurodegenerativas.
+                    Las cervezas completamente artesanales contienen niveles más
+                    altos de polifenoles y flavonoides, compuestos antioxidantes
+                    que ayudan a combatir el estrés oxidativo y la inflamación.
+                    Estos antioxidantes pueden contribuir a la salud
+                    cardiovascular y a la prevención de enfermedades
+                    neurodegenerativas.
                   </p>
                   <div className="text-sm text-amber-700">
                     Fuentes: elviejoartesano.com, TuChecador App
@@ -658,8 +665,9 @@ export default function Home() {
                     Gracias a procesos menos agresivos como la no pasteurización
                     y la filtración mínima, nuestra cerveza conserva una mayor
                     cantidad de vitaminas del grupo B (B2, B3, B6) y minerales
-                    como magnesio, fósforo y potasio. Estos nutrientes son
-                    importantes para funciones metabólicas y la salud ósea.
+                    como magnesio, fósforo y potasio, provenientes del agua de
+                    manantial. Estos nutrientes son importantes para funciones
+                    metabólicas y la salud ósea.
                   </p>
                   <div className="text-sm text-amber-700">
                     Fuente: www.elsevier.com
@@ -694,9 +702,8 @@ export default function Home() {
                     La presencia de fibras solubles como los beta-glucanos y
                     probióticos naturales en nuestra cerveza artesanal puede
                     favorecer una digestión saludable y aliviar problemas como
-                    el estreñimiento. Estos componentes también apoyan la salud
-                    intestinal al promover el crecimiento de bacterias
-                    beneficiosas.
+                    el estreñimiento. Vas a notar que no te duele la panza luego
+                    de una de nuestras cervezas.
                   </p>
                   <div className="text-sm text-amber-700">
                     Fuente: Cervecería FESTA
@@ -816,8 +823,8 @@ export default function Home() {
                 Nuestra Historia
               </h2>
               <p className="text-muted-foreground max-w-3xl mx-auto">
-                Una familia, un sueño y una perra llamada Luna que lo cambió
-                todo.
+                Luna Brew House nació de la pasión por la comida, los viajes y
+                el descubrimiento de las mejores cervezas artesanales del país.
               </p>
             </div>
 
@@ -842,25 +849,27 @@ export default function Home() {
               </div>
               <div className="space-y-6">
                 <div className="space-y-2">
+                  <h3 className="text-2xl font-bold">Amantes de la cerveza</h3>
+                  <p className="text-muted-foreground">
+                    Nuestra historia comenzó como un hobby familiar, una pasión
+                    compartida que pronto se convirtió en una misión: recrear el
+                    sabor y la textura de aquellas cervezas únicas que
+                    encontramos en distintos lugares de Argentina. Queríamos
+                    hacer propias esas experiencias y transformarlas en sabores
+                    especiales, pensados para acompañar comidas caseras y
+                    momentos inolvidables.
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <h3 className="text-2xl font-bold">
                     El alma de nuestra cervecería
                   </h3>
                   <p className="text-muted-foreground">
-                    Luna no es solo un nombre, sino nuestra inspiración. Luna es
-                    nuestra fiel compañera, una perra que llegó a nuestras vidas
-                    una mágica noche de luna llena. Desde ese momento, su
-                    espíritu alegre y amigable se convirtió en el símbolo
-                    perfecto de nuestra cervecería artesanal: auténtica, cálida
-                    y hecha con amor.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-bold">Raíces vascas</h3>
-                  <p className="text-muted-foreground">
-                    Nuestra historia está profundamente arraigada en nuestras
-                    raíces vascas, donde la tradición y el amor por lo artesanal
-                    siempre han sido parte de nuestra vida. Traemos esa herencia
-                    a cada cerveza que elaboramos.
+                    El nombre Luna no es casualidad. Ella es nuestra compañera
+                    de aventuras, una perra que llegó una noche mágica y se
+                    convirtió en símbolo de nuestra cervecería: auténtica,
+                    alegre y fiel. Su espíritu libre refleja lo que queremos
+                    transmitir en cada creación.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -868,9 +877,10 @@ export default function Home() {
                     Mar del Plata, nuestro hogar
                   </h3>
                   <p className="text-muted-foreground">
-                    Desde "La Feliz", creamos cervezas que capturan la esencia
-                    de nuestra ciudad costera: refrescantes, auténticas y con
-                    carácter.
+                    Hoy, desde Mar del Plata, cuna de grandes cervecerías del
+                    país, elaboramos cervezas que capturan la esencia de
+                    Argentina: su diversidad, su calidez y sus paisajes que
+                    tanto nos inspiran.
                   </p>
                 </div>
               </div>
@@ -914,7 +924,7 @@ export default function Home() {
                 <h2 className="text-3xl font-bold tracking-tight">Visítanos</h2>
                 <p className="text-muted-foreground">
                   Te esperamos para compartir nuestras cervezas y conocer a Luna
-                  en persona. ¡Brindemos juntos por momentos inolvidables!
+                  en persona!
                 </p>
 
                 <div className="space-y-4">
