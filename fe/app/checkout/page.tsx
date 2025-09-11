@@ -1663,10 +1663,18 @@ export default function CheckoutPage() {
                   <CardContent className="p-6">
                     <Tabs defaultValue="guest" className="w-full">
                       <TabsList className="grid w-full grid-cols-2 mb-6">
-                        <TabsTrigger value="guest">
-                          Continuar como invitado
+                        <TabsTrigger value="guest" className="text-sm">
+                          <span className="hidden sm:inline">
+                            Continuar como invitado
+                          </span>
+                          <span className="sm:hidden">Invitado</span>
                         </TabsTrigger>
-                        <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
+                        <TabsTrigger value="login" className="text-sm">
+                          <span className="hidden sm:inline">
+                            Iniciar sesión
+                          </span>
+                          <span className="sm:hidden">Ingresar</span>
+                        </TabsTrigger>
                       </TabsList>
                       <TabsContent value="guest">
                         <UserAuthForm
