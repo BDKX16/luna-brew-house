@@ -247,12 +247,12 @@ export default function Home() {
         <div className="container flex h-16 items-center justify-between py-4">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="relative h-10 w-10 overflow-hidden rounded-full">
+            <div className="relative h-12 w-12 overflow-hidden rounded-full">
               <Image
-                src="/images/luna-logo.png"
+                src="/logo-luna.jpg"
                 alt="Luna logo"
-                width={40}
-                height={40}
+                width={49}
+                height={49}
                 className="object-cover"
               />
             </div>
