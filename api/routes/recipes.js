@@ -620,8 +620,7 @@ router.post("/recipes/:id/complete", checkAuth, async (req, res) => {
     if (!["completed", "fermenting", "cancelled"].includes(status)) {
       return res.status(400).json({ error: "Estado final inválido" });
     }
-
-    const recipe = await Recipe.findOne({ id: req.params.id });
+    const recipe = await Recipe.findById(req.params.id);
 
     if (!recipe) {
       return res.status(404).json({ error: "Receta no encontrada" });
@@ -1166,5 +1165,53 @@ router.stack.forEach((middleware, index) => {
     console.log(`${index + 1}. ${methods} ${middleware.route.path}`);
   }
 });
+
+// Enviar notificación de step a administradores
+router.post(
+  "/recipes/:id/sessions/:sessionId/notify-step",
+  checkAuth,
+  async (req, res) => {
+    try {
+      const { id, sessionId } = req.params;
+      const { stepData } = req.body;
+
+      const recipe = await Recipe.findById(id);
+      if (!recipe) {
+        return res.status(404).json({ error: "Receta no encontrada" });
+      }
+
+      const session = recipe.brewingSessions.find(
+        (s) => s.sessionId === sessionId
+      );
+      if (!session) {
+        return res.status(404).json({ error: "Sesión no encontrada" });
+      }
+
+      // Importar el servicio de email
+      const emailService = require("../infraestructure/services/emailService");
+
+      // Preparar datos para el email
+      const emailData = {
+        recipeName: recipe.name,
+        stepDescription: stepData.description,
+        stepType: stepData.type,
+        stepTime: stepData.time,
+        sessionId: sessionId,
+        batchNumber: session.batchNumber || null,
+      };
+
+      // Enviar notificación
+      const results = await emailService.sendBrewingStepNotification(emailData);
+
+      res.json({
+        message: "Notificación enviada exitosamente",
+        emailResults: results,
+      });
+    } catch (error) {
+      console.error("Error al enviar notificación de step:", error);
+      res.status(500).json({ error: "Error interno del servidor" });
+    }
+  }
+);
 
 module.exports = router;
