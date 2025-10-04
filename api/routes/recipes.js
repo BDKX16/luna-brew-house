@@ -550,6 +550,16 @@ router.post("/recipes/:id/complete", async (req, res) => {
       (s) => s.sessionId === recipe.currentSession
     );
 
+    // Si el estado es fermenting y no tiene batch number, generar uno
+    if (
+      status === "fermenting" &&
+      currentSession &&
+      !currentSession.batchNumber
+    ) {
+      const batchNumber = await generateBatchNumber();
+      currentSession.batchNumber = batchNumber;
+    }
+
     recipe.endCurrentSession(status);
     await recipe.save();
 
@@ -1043,6 +1053,70 @@ router.delete(
       res
         .status(500)
         .json({ error: error.message || "Error interno del servidor" });
+    }
+  }
+);
+
+// Marcar batch como completado
+router.patch(
+  "/recipes/:id/sessions/:sessionId/complete",
+  authenticate,
+  async (req, res) => {
+    try {
+      const { id, sessionId } = req.params;
+      const { finalGravity, batchLiters, batchNotes } = req.body;
+
+      const recipe = await Recipe.findOne({ id });
+      if (!recipe) {
+        return res.status(404).json({ error: "Receta no encontrada" });
+      }
+
+      const session = recipe.brewingSessions.find(
+        (s) => s.sessionId === sessionId
+      );
+      if (!session) {
+        return res.status(404).json({ error: "Sesión no encontrada" });
+      }
+
+      if (session.status !== "fermenting") {
+        return res
+          .status(400)
+          .json({ error: "Solo se pueden completar batches en fermentación" });
+      }
+
+      // Actualizar el estado y datos finales
+      session.status = "completed";
+      session.packagingDate = new Date();
+
+      if (finalGravity !== undefined) {
+        session.finalGravity = finalGravity;
+
+        // Calcular ABV si tenemos originalGravity
+        if (session.originalGravity) {
+          session.calculatedABV = (
+            (session.originalGravity - finalGravity) *
+            131.25
+          ).toFixed(2);
+        }
+      }
+
+      if (batchLiters !== undefined) {
+        session.batchLiters = batchLiters;
+      }
+
+      if (batchNotes !== undefined) {
+        session.batchNotes = batchNotes;
+      }
+
+      await recipe.save();
+
+      res.json({
+        message: "Batch marcado como completado exitosamente",
+        session: session,
+      });
+    } catch (error) {
+      console.error("Error al completar batch:", error);
+      res.status(500).json({ error: "Error interno del servidor" });
     }
   }
 );
