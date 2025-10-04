@@ -47,6 +47,7 @@ import useFetchAndLoad from "@/hooks/useFetchAndLoad";
 import {
   updateBrewingSessionPackaging,
   completeBatch,
+  notifyBrewingStep,
 } from "@/services/private";
 
 interface BatchDetailsModalProps {
@@ -396,6 +397,37 @@ export default function BatchDetailsModal({
     }
   };
 
+  // Función para enviar notificación de step a administradores
+  const handleStepNotification = async (step: any) => {
+    try {
+      console.log("📧 Enviando notificación de step a administradores:", step);
+
+      const stepData = {
+        description: step.description,
+        type: step.type,
+        time: step.time,
+        amount: step.amount || null,
+        temperature: step.temperature || null,
+      };
+
+      await callEndpoint(
+        notifyBrewingStep(session.recipeId, session.sessionId, stepData)
+      );
+
+      console.log("✅ Notificación enviada exitosamente");
+
+      // Toast opcional para confirmar al usuario
+      toast({
+        title: "📧 Notificación enviada",
+        description: "Se ha notificado a los administradores sobre este step",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error("❌ Error al enviar notificación:", error);
+      // No mostrar error al usuario para no ser intrusivo
+    }
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -697,7 +729,15 @@ export default function BatchDetailsModal({
                         const primaryStep = group.steps[0];
 
                         return (
-                          <Popover key={groupIndex}>
+                          <Popover
+                            key={groupIndex}
+                            onOpenChange={(open) => {
+                              if (open) {
+                                // Enviar notificación cuando se abre el modal del step de maceración
+                                handleStepNotification(primaryStep);
+                              }
+                            }}
+                          >
                             <PopoverTrigger asChild>
                               <div
                                 className="absolute transform -translate-x-1/2 cursor-pointer hover:scale-110 transition-transform"
@@ -890,7 +930,15 @@ export default function BatchDetailsModal({
                         const adjustedTime = group.time - mashTime;
 
                         return (
-                          <Popover key={groupIndex}>
+                          <Popover
+                            key={groupIndex}
+                            onOpenChange={(open) => {
+                              if (open) {
+                                // Enviar notificación cuando se abre el modal del step de hervido
+                                handleStepNotification(primaryStep);
+                              }
+                            }}
+                          >
                             <PopoverTrigger asChild>
                               <div
                                 className="absolute transform -translate-x-1/2 cursor-pointer hover:scale-110 transition-transform"
@@ -1103,7 +1151,15 @@ export default function BatchDetailsModal({
                         const primaryStep = group.steps[0];
 
                         return (
-                          <Popover key={groupIndex}>
+                          <Popover
+                            key={groupIndex}
+                            onOpenChange={(open) => {
+                              if (open) {
+                                // Enviar notificación cuando se abre el modal del step de fermentación
+                                handleStepNotification(primaryStep);
+                              }
+                            }}
+                          >
                             <PopoverTrigger asChild>
                               <div
                                 className="absolute transform -translate-x-1/2 cursor-pointer hover:scale-110 transition-transform"

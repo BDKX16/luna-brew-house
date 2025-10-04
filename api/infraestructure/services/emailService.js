@@ -1523,6 +1523,166 @@ class EmailService {
 
     return results;
   }
+
+  /**
+   * Envía notificación a administradores sobre step de receta que requiere atención
+   */
+  async sendBrewingStepNotification(stepData) {
+    try {
+      const {
+        recipeName,
+        stepDescription,
+        stepType,
+        stepTime,
+        sessionId,
+        batchNumber,
+      } = stepData;
+
+      const subject = `🍺 Acción requerida: ${stepDescription} - ${recipeName}`;
+
+      const htmlContent = this.getBaseTemplate()
+        .replace("{{TITLE}}", subject)
+        .replace(
+          "{{MAIN_CONTENT}}",
+          `
+          <div style="background: linear-gradient(135deg, #1a365d 0%, #2d5a87 100%); padding: 40px 0; text-align: center;">
+            <h1 style="color: white; font-size: 28px; margin-bottom: 10px;">🍺 Luna Brew House</h1>
+            <p style="color: #e2e8f0; font-size: 16px;">Notificación de Elaboración</p>
+          </div>
+          
+          <div style="padding: 40px 30px;">
+            <div style="background: #fef5e7; border-left: 4px solid #f6ad55; padding: 20px; margin-bottom: 30px; border-radius: 8px;">
+              <h2 style="color: #c05621; margin-bottom: 10px;">⚠️ Acción Requerida</h2>
+              <p style="color: #744210; font-size: 16px; margin: 0;">
+                Es momento de realizar el siguiente paso en la elaboración de cerveza.
+              </p>
+            </div>
+
+            <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 30px; margin-bottom: 30px;">
+              <h3 style="color: #1a365d; margin-bottom: 20px; font-size: 20px;">📋 Detalles del Step</h3>
+              
+              <div style="display: grid; gap: 15px;">
+                <div style="display: flex; padding: 12px; background: #f7fafc; border-radius: 8px;">
+                  <strong style="color: #2d3748; min-width: 140px;">🍺 Receta:</strong>
+                  <span style="color: #4a5568;">${recipeName}</span>
+                </div>
+                
+                <div style="display: flex; padding: 12px; background: #f7fafc; border-radius: 8px;">
+                  <strong style="color: #2d3748; min-width: 140px;">📝 Descripción:</strong>
+                  <span style="color: #4a5568;">${stepDescription}</span>
+                </div>
+                
+                <div style="display: flex; padding: 12px; background: #f7fafc; border-radius: 8px;">
+                  <strong style="color: #2d3748; min-width: 140px;">🔧 Tipo:</strong>
+                  <span style="color: #4a5568;">${this.getStepTypeLabel(
+                    stepType
+                  )}</span>
+                </div>
+                
+                <div style="display: flex; padding: 12px; background: #f7fafc; border-radius: 8px;">
+                  <strong style="color: #2d3748; min-width: 140px;">⏱️ Tiempo:</strong>
+                  <span style="color: #4a5568;">${this.formatBrewingTime(
+                    stepTime
+                  )}</span>
+                </div>
+                
+                ${
+                  batchNumber
+                    ? `
+                <div style="display: flex; padding: 12px; background: #f7fafc; border-radius: 8px;">
+                  <strong style="color: #2d3748; min-width: 140px;">🏷️ Batch:</strong>
+                  <span style="color: #4a5568;">#${batchNumber}</span>
+                </div>
+                `
+                    : ""
+                }
+                
+                <div style="display: flex; padding: 12px; background: #f7fafc; border-radius: 8px;">
+                  <strong style="color: #2d3748; min-width: 140px;">🆔 Sesión:</strong>
+                  <span style="color: #4a5568; font-family: monospace; font-size: 12px;">${sessionId}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="background: #e6fffa; border: 1px solid #81e6d9; border-radius: 12px; padding: 20px; text-align: center;">
+              <p style="color: #234e52; margin-bottom: 15px;">
+                📱 <strong>Accede al panel de administración para realizar esta acción</strong>
+              </p>
+              <a href="${
+                process.env.FRONTEND_URL || "http://localhost:3001"
+              }/admin/recetas" 
+                 style="display: inline-block; background: #1a365d; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                🔗 Ir al Panel de Recetas
+              </a>
+            </div>
+
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #718096; font-size: 14px; text-align: center;">
+              <p>Este es un mensaje automático del sistema de elaboración de Luna Brew House.</p>
+              <p>No responder a este correo.</p>
+            </div>
+          </div>
+        `
+        );
+
+      // Obtener emails de administradores
+      const adminEmails = await this.getAdminEmails();
+
+      if (adminEmails.length === 0) {
+        console.warn(
+          "⚠️ No se encontraron emails de administradores para notificación de step"
+        );
+        return false;
+      }
+
+      // Enviar a todos los administradores
+      const results = await this.sendBulkEmails(
+        adminEmails,
+        subject,
+        htmlContent
+      );
+
+      console.log(
+        `📧 Notificación de step enviada a ${adminEmails.length} administradores`
+      );
+      return results;
+    } catch (error) {
+      console.error("❌ Error al enviar notificación de step:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene etiqueta legible para el tipo de step
+   */
+  getStepTypeLabel(stepType) {
+    const labels = {
+      "hop-addition": "🌿 Adición de Lúpulo",
+      "dry-hop": "🌿 Dry Hopping",
+      "caramel-addition": "🍯 Adición de Caramelo",
+      "yeast-addition": "🦠 Adición de Levadura",
+      "temperature-change": "🌡️ Cambio de Temperatura",
+      stirring: "🥄 Agitación",
+      other: "⚙️ Otro",
+    };
+    return labels[stepType] || "❓ Desconocido";
+  }
+
+  /**
+   * Obtiene emails de usuarios administradores
+   */
+  async getAdminEmails() {
+    try {
+      const User = require("../../models/user");
+      const admins = await User.find({ role: "admin" }, "email name");
+      return admins.map((admin) => ({
+        email: admin.email,
+        name: admin.name,
+      }));
+    } catch (error) {
+      console.error("Error al obtener emails de administradores:", error);
+      return [];
+    }
+  }
 }
 
 module.exports = new EmailService();

@@ -1946,3 +1946,31 @@ export const completeBatch = (recipeId, sessionId, batchData) => {
     controller,
   };
 };
+
+// Enviar notificación de step a administradores
+export const notifyBrewingStep = (recipeId, sessionId, stepData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .post(
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/sessions/${sessionId}/notify-step`,
+        { stepData },
+        {
+          ...headers,
+          signal: controller.signal,
+        }
+      )
+      .catch((error) => {
+        console.error("Error notifying brewing step:", error);
+        throw error;
+      }),
+    controller,
+  };
+};
