@@ -557,7 +557,7 @@ router.patch(
       const { id, sessionId } = req.params;
       const { finalGravity, batchLiters, batchNotes } = req.body;
 
-      const recipe = await Recipe.findOne({ id });
+      const recipe = await Recipe.findById(id);
       if (!recipe) {
         return res.status(404).json({ error: "Receta no encontrada" });
       }

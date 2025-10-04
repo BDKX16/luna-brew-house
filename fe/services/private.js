@@ -1931,7 +1931,8 @@ export const completeBatch = (recipeId, sessionId, batchData) => {
   return {
     call: axios
       .patch(
-        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/sessions/${sessionId}/complete`,
+        process.env.NEXT_PUBLIC_API_URL +
+          `/admin/recipes/${recipeId}/sessions/${sessionId}/complete`,
         batchData,
         {
           ...headers,
