@@ -5,6 +5,21 @@ const Recipe = require("../models/recipe");
 const { v4: uuidv4 } = require("uuid");
 const { checkAuth, checkRole } = require("../middlewares/authentication");
 
+console.log(
+  "🍺 RECIPES ROUTER LOADED - Complete batch endpoint should be available"
+);
+
+// RUTA DE PRUEBA - ELIMINAR DESPUÉS
+router.get("/recipes/:id/sessions/:sessionId/test", (req, res) => {
+  res.json({
+    message: "TEST ENDPOINT WORKS!",
+    params: req.params,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Función para generar batch number incremental
+
 // Obtener todas las recetas
 router.get("/recipes", checkAuth, async (req, res) => {
   try {
@@ -538,6 +553,7 @@ router.patch(
   "/recipes/:id/sessions/:sessionId/complete",
   checkAuth,
   async (req, res) => {
+    console.log("🔥 ENDPOINT COMPLETE BATCH LLAMADO:", req.params);
     try {
       const { id, sessionId } = req.params;
       const { finalGravity, batchLiters, batchNotes } = req.body;
@@ -1140,5 +1156,16 @@ router.delete(
     }
   }
 );
+
+// Debug: Listar todas las rutas registradas
+console.log("🔍 ROUTES REGISTERED:");
+router.stack.forEach((middleware, index) => {
+  if (middleware.route) {
+    const methods = Object.keys(middleware.route.methods)
+      .join(", ")
+      .toUpperCase();
+    console.log(`${index + 1}. ${methods} ${middleware.route.path}`);
+  }
+});
 
 module.exports = router;
