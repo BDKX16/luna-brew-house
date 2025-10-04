@@ -19,6 +19,32 @@ router.get("/recipes/:id/sessions/:sessionId/test", (req, res) => {
 });
 
 // Función para generar batch number incremental
+async function generateBatchNumber() {
+  try {
+    // Buscar todos los batches existentes para obtener el número más alto
+    const recipes = await Recipe.find({
+      "brewingSessions.batchNumber": { $exists: true, $ne: null },
+    });
+
+    let maxBatchNumber = 0;
+
+    // Recorrer todas las recetas y sus sesiones para encontrar el batch number más alto
+    recipes.forEach((recipe) => {
+      recipe.brewingSessions.forEach((session) => {
+        if (session.batchNumber && typeof session.batchNumber === "number") {
+          maxBatchNumber = Math.max(maxBatchNumber, session.batchNumber);
+        }
+      });
+    });
+
+    // Retornar el siguiente número
+    return maxBatchNumber + 1;
+  } catch (error) {
+    console.error("Error generando batch number:", error);
+    // En caso de error, usar timestamp como fallback
+    return Date.now();
+  }
+}
 
 // Obtener todas las recetas
 router.get("/recipes", checkAuth, async (req, res) => {
