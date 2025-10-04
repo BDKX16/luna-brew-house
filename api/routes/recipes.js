@@ -620,7 +620,7 @@ router.post("/recipes/:id/complete", checkAuth, async (req, res) => {
     if (!["completed", "fermenting", "cancelled"].includes(status)) {
       return res.status(400).json({ error: "Estado final inválido" });
     }
-    const recipe = await Recipe.findById(req.params.id);
+    const recipe = await Recipe.findOne({ id: req.params.id });
 
     if (!recipe) {
       return res.status(404).json({ error: "Receta no encontrada" });
