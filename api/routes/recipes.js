@@ -3,9 +3,10 @@ const mongoose = require("mongoose");
 const router = express.Router();
 const Recipe = require("../models/recipe");
 const { v4: uuidv4 } = require("uuid");
+const { checkAuth, checkRole } = require("../middlewares/authentication");
 
 // Obtener todas las recetas
-router.get("/recipes", async (req, res) => {
+router.get("/recipes", checkAuth, async (req, res) => {
   try {
     const { status, difficulty, style, createdBy } = req.query;
 
@@ -27,7 +28,7 @@ router.get("/recipes", async (req, res) => {
 });
 
 // Obtener una receta por ID
-router.get("/recipes/:id", async (req, res) => {
+router.get("/recipes/:id", checkAuth, async (req, res) => {
   try {
     // Buscar por id personalizado primero, luego por _id de MongoDB
     let recipe = await Recipe.findOne({ id: req.params.id }).populate(
@@ -55,7 +56,7 @@ router.get("/recipes/:id", async (req, res) => {
 });
 
 // Crear una nueva receta
-router.post("/recipes", async (req, res) => {
+router.post("/recipes", checkAuth, async (req, res) => {
   try {
     const recipeData = {
       ...req.body,
@@ -90,7 +91,7 @@ router.post("/recipes", async (req, res) => {
 });
 
 // Actualizar una receta
-router.put("/recipes/:id", async (req, res) => {
+router.put("/recipes/:id", checkAuth, async (req, res) => {
   try {
     // Buscar por _id de MongoDB primero, luego por id personalizado
     let recipe = await Recipe.findById(req.params.id);
@@ -140,7 +141,7 @@ router.put("/recipes/:id", async (req, res) => {
 });
 
 // Eliminar una receta
-router.delete("/recipes/:id", async (req, res) => {
+router.delete("/recipes/:id", checkAuth, async (req, res) => {
   try {
     console.log("Intentando eliminar receta con ID:", req.params.id);
 
@@ -195,7 +196,7 @@ router.delete("/recipes/:id", async (req, res) => {
 // === RUTAS PARA SESIONES DE ELABORACIÓN ===
 
 // Iniciar una nueva sesión de elaboración
-router.post("/recipes/:id/start", async (req, res) => {
+router.post("/recipes/:id/start", checkAuth, async (req, res) => {
   try {
     const recipe = await Recipe.findOne({ id: req.params.id });
 
@@ -239,7 +240,7 @@ router.post("/recipes/:id/start", async (req, res) => {
 });
 
 // Pausar la sesión actual
-router.post("/recipes/:id/pause", async (req, res) => {
+router.post("/recipes/:id/pause", checkAuth, async (req, res) => {
   try {
     const recipe = await Recipe.findOne({ id: req.params.id });
 
@@ -277,7 +278,7 @@ router.post("/recipes/:id/pause", async (req, res) => {
 });
 
 // Reanudar la sesión actual
-router.post("/recipes/:id/resume", async (req, res) => {
+router.post("/recipes/:id/resume", checkAuth, async (req, res) => {
   try {
     const recipe = await Recipe.findOne({ id: req.params.id });
 
@@ -315,7 +316,7 @@ router.post("/recipes/:id/resume", async (req, res) => {
 });
 
 // Actualizar tiempo actual de la sesión
-router.patch("/recipes/:id/time", async (req, res) => {
+router.patch("/recipes/:id/time", checkAuth, async (req, res) => {
   try {
     const { currentTime } = req.body;
 
@@ -348,7 +349,7 @@ router.patch("/recipes/:id/time", async (req, res) => {
 });
 
 // Actualizar mediciones de gravedad y ABV
-router.patch("/recipes/:id/gravity", async (req, res) => {
+router.patch("/recipes/:id/gravity", checkAuth, async (req, res) => {
   try {
     const {
       originalGravity,
@@ -455,77 +456,85 @@ router.patch("/recipes/:id/gravity", async (req, res) => {
 });
 
 // Marcar paso como completado
-router.post("/recipes/:id/steps/:stepId/complete", async (req, res) => {
-  try {
-    const { stepId } = req.params;
+router.post(
+  "/recipes/:id/steps/:stepId/complete",
+  checkAuth,
+  async (req, res) => {
+    try {
+      const { stepId } = req.params;
 
-    const recipe = await Recipe.findOne({ id: req.params.id });
+      const recipe = await Recipe.findOne({ id: req.params.id });
 
-    if (!recipe) {
-      return res.status(404).json({ error: "Receta no encontrada" });
+      if (!recipe) {
+        return res.status(404).json({ error: "Receta no encontrada" });
+      }
+
+      if (!recipe.currentSession) {
+        return res.status(400).json({ error: "No hay sesión activa" });
+      }
+
+      // Verificar que el paso existe
+      const step = recipe.steps.find((s) => s.id === stepId);
+      if (!step) {
+        return res.status(404).json({ error: "Paso no encontrado" });
+      }
+
+      recipe.completeStep(stepId);
+      await recipe.save();
+
+      res.json({
+        message: "Paso marcado como completado",
+        step: step,
+        session: recipe.getCurrentSession(),
+      });
+    } catch (error) {
+      console.error("Error al completar paso:", error);
+      res.status(500).json({ error: "Error interno del servidor" });
     }
-
-    if (!recipe.currentSession) {
-      return res.status(400).json({ error: "No hay sesión activa" });
-    }
-
-    // Verificar que el paso existe
-    const step = recipe.steps.find((s) => s.id === stepId);
-    if (!step) {
-      return res.status(404).json({ error: "Paso no encontrado" });
-    }
-
-    recipe.completeStep(stepId);
-    await recipe.save();
-
-    res.json({
-      message: "Paso marcado como completado",
-      step: step,
-      session: recipe.getCurrentSession(),
-    });
-  } catch (error) {
-    console.error("Error al completar paso:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
   }
-});
+);
 
 // Desmarcar paso como completado
-router.delete("/recipes/:id/steps/:stepId/complete", async (req, res) => {
-  try {
-    const { stepId } = req.params;
+router.delete(
+  "/recipes/:id/steps/:stepId/complete",
+  checkAuth,
+  async (req, res) => {
+    try {
+      const { stepId } = req.params;
 
-    const recipe = await Recipe.findOne({ id: req.params.id });
+      const recipe = await Recipe.findOne({ id: req.params.id });
 
-    if (!recipe) {
-      return res.status(404).json({ error: "Receta no encontrada" });
+      if (!recipe) {
+        return res.status(404).json({ error: "Receta no encontrada" });
+      }
+
+      if (!recipe.currentSession) {
+        return res.status(400).json({ error: "No hay sesión activa" });
+      }
+
+      // Verificar que el paso existe
+      const step = recipe.steps.find((s) => s.id === stepId);
+      if (!step) {
+        return res.status(404).json({ error: "Paso no encontrado" });
+      }
+
+      recipe.uncompleteStep(stepId);
+      await recipe.save();
+
+      res.json({
+        message: "Paso desmarcado como completado",
+        step: step,
+        session: recipe.getCurrentSession(),
+      });
+    } catch (error) {
+      console.error("Error al descompletar paso:", error);
+      res.status(500).json({ error: "Error interno del servidor" });
     }
-
-    if (!recipe.currentSession) {
-      return res.status(400).json({ error: "No hay sesión activa" });
-    }
-
-    // Verificar que el paso existe
-    const step = recipe.steps.find((s) => s.id === stepId);
-    if (!step) {
-      return res.status(404).json({ error: "Paso no encontrado" });
-    }
-
-    recipe.uncompleteStep(stepId);
-    await recipe.save();
-
-    res.json({
-      message: "Paso desmarcado como completado",
-      step: step,
-      session: recipe.getCurrentSession(),
-    });
-  } catch (error) {
-    console.error("Error al descompletar paso:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
   }
-});
+);
 
 // Finalizar sesión de elaboración
-router.post("/recipes/:id/complete", async (req, res) => {
+router.post("/recipes/:id/complete", checkAuth, async (req, res) => {
   try {
     const { status = "completed" } = req.body;
 
@@ -574,7 +583,7 @@ router.post("/recipes/:id/complete", async (req, res) => {
 });
 
 // Obtener estado actual de elaboración
-router.get("/recipes/:id/status", async (req, res) => {
+router.get("/recipes/:id/status", checkAuth, async (req, res) => {
   try {
     const recipe = await Recipe.findOne({ id: req.params.id });
 
@@ -618,7 +627,7 @@ router.get("/recipes/:id/status", async (req, res) => {
 });
 
 // Obtener historial de sesiones
-router.get("/recipes/:id/history", async (req, res) => {
+router.get("/recipes/:id/history", checkAuth, async (req, res) => {
   try {
     const recipe = await Recipe.findOne({ id: req.params.id });
 
@@ -649,7 +658,7 @@ router.get("/recipes/:id/history", async (req, res) => {
 // === RUTAS PARA GESTIÓN DE PASOS ===
 
 // Agregar un nuevo paso a una receta
-router.post("/recipes/:id/steps", async (req, res) => {
+router.post("/recipes/:id/steps", checkAuth, async (req, res) => {
   try {
     const { time, type, description, amount, temperature } = req.body;
 
@@ -689,7 +698,7 @@ router.post("/recipes/:id/steps", async (req, res) => {
 });
 
 // Actualizar un paso existente
-router.put("/recipes/:id/steps/:stepId", async (req, res) => {
+router.put("/recipes/:id/steps/:stepId", checkAuth, async (req, res) => {
   try {
     const { stepId } = req.params;
     const { time, type, description, amount, temperature } = req.body;
@@ -729,7 +738,7 @@ router.put("/recipes/:id/steps/:stepId", async (req, res) => {
 });
 
 // Eliminar un paso de una receta
-router.delete("/recipes/:id/steps/:stepId", async (req, res) => {
+router.delete("/recipes/:id/steps/:stepId", checkAuth, async (req, res) => {
   try {
     const { stepId } = req.params;
 
@@ -758,7 +767,7 @@ router.delete("/recipes/:id/steps/:stepId", async (req, res) => {
 });
 
 // Obtener historial de todas las sesiones de brewing
-router.get("/brewing-sessions", async (req, res) => {
+router.get("/brewing-sessions", checkAuth, async (req, res) => {
   try {
     // Buscar todas las recetas que tengan sesiones de brewing
     const recipes = await Recipe.find({
@@ -816,7 +825,7 @@ router.get("/brewing-sessions", async (req, res) => {
 });
 
 // Eliminar una sesión de brewing
-router.delete("/brewing-sessions/:sessionId", async (req, res) => {
+router.delete("/brewing-sessions/:sessionId", checkAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
 
@@ -854,52 +863,61 @@ router.delete("/brewing-sessions/:sessionId", async (req, res) => {
 });
 
 // Actualizar fecha de envasado de una sesión
-router.patch("/brewing-sessions/:sessionId/packaging", async (req, res) => {
-  try {
-    const { sessionId } = req.params;
-    const { packagingDate } = req.body;
+router.patch(
+  "/brewing-sessions/:sessionId/packaging",
+  checkAuth,
+  async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const { packagingDate } = req.body;
 
-    // Buscar la receta que contiene esta sesión de brewing
-    const recipe = await Recipe.findOne({
-      "brewingSessions.sessionId": sessionId,
-    });
+      // Buscar la receta que contiene esta sesión de brewing
+      const recipe = await Recipe.findOne({
+        "brewingSessions.sessionId": sessionId,
+      });
 
-    if (!recipe) {
-      return res.status(404).json({ error: "Sesión de brewing no encontrada" });
+      if (!recipe) {
+        return res
+          .status(404)
+          .json({ error: "Sesión de brewing no encontrada" });
+      }
+
+      // Encontrar y actualizar la sesión específica
+      const session = recipe.brewingSessions.find(
+        (s) => s.sessionId === sessionId
+      );
+      if (!session) {
+        return res
+          .status(404)
+          .json({ error: "Sesión de brewing no encontrada" });
+      }
+
+      // Actualizar la fecha de envasado
+      session.packagingDate = packagingDate;
+
+      // Guardar los cambios
+      await recipe.save();
+
+      res.json({
+        message: "Fecha de envasado actualizada exitosamente",
+        data: {
+          sessionId,
+          packagingDate,
+        },
+      });
+    } catch (error) {
+      console.error("Error al actualizar fecha de envasado:", error);
+      res.status(500).json({ error: "Error interno del servidor" });
     }
-
-    // Encontrar y actualizar la sesión específica
-    const session = recipe.brewingSessions.find(
-      (s) => s.sessionId === sessionId
-    );
-    if (!session) {
-      return res.status(404).json({ error: "Sesión de brewing no encontrada" });
-    }
-
-    // Actualizar la fecha de envasado
-    session.packagingDate = packagingDate;
-
-    // Guardar los cambios
-    await recipe.save();
-
-    res.json({
-      message: "Fecha de envasado actualizada exitosamente",
-      data: {
-        sessionId,
-        packagingDate,
-      },
-    });
-  } catch (error) {
-    console.error("Error al actualizar fecha de envasado:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
   }
-});
+);
 
 // ===== RUTAS PARA PASOS PERSONALIZADOS DE SESIÓN =====
 
 // Agregar paso personalizado a una sesión específica
 router.post(
   "/recipes/:recipeId/brewing-sessions/:sessionId/custom-steps",
+  checkAuth,
   async (req, res) => {
     try {
       const { recipeId, sessionId } = req.params;
@@ -960,6 +978,7 @@ router.post(
 // Editar paso personalizado de una sesión específica
 router.put(
   "/recipes/:recipeId/brewing-sessions/:sessionId/custom-steps/:stepId",
+  checkAuth,
   async (req, res) => {
     try {
       const { recipeId, sessionId, stepId } = req.params;
@@ -1014,6 +1033,7 @@ router.put(
 // Eliminar paso personalizado de una sesión específica
 router.delete(
   "/recipes/:recipeId/brewing-sessions/:sessionId/custom-steps/:stepId",
+  checkAuth,
   async (req, res) => {
     try {
       const { recipeId, sessionId, stepId } = req.params;
@@ -1060,7 +1080,7 @@ router.delete(
 // Marcar batch como completado
 router.patch(
   "/recipes/:id/sessions/:sessionId/complete",
-  authenticate,
+  checkAuth,
   async (req, res) => {
     try {
       const { id, sessionId } = req.params;
