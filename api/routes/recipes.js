@@ -553,47 +553,27 @@ router.patch(
   "/recipes/:id/sessions/:sessionId/complete",
   checkAuth,
   async (req, res) => {
-    console.log("🔥 ENDPOINT COMPLETE BATCH LLAMADO:", req.params);
     try {
       const { id, sessionId } = req.params;
       const { finalGravity, batchLiters, batchNotes } = req.body;
 
-      console.log("🔍 Buscando receta con ID:", id);
       const recipe = await Recipe.findOne({ id });
-      console.log("📋 Receta encontrada:", recipe ? "SÍ" : "NO");
-      
       if (!recipe) {
-        console.log("❌ RECETA NO ENCONTRADA");
-        // Mostrar todas las recetas disponibles para debug
-        const allRecipes = await Recipe.find({}, { id: 1, name: 1 });
-        console.log("🔍 IDs de recetas disponibles:", allRecipes.map(r => ({ id: r.id, name: r.name })));
         return res.status(404).json({ error: "Receta no encontrada" });
       }
 
-      console.log("🔍 Buscando sesión con ID:", sessionId);
-      console.log("📊 Total de sesiones en receta:", recipe.brewingSessions?.length || 0);
-      
       const session = recipe.brewingSessions.find(
         (s) => s.sessionId === sessionId
       );
-      console.log("🎯 Sesión encontrada:", session ? "SÍ" : "NO");
-      
       if (!session) {
-        console.log("❌ SESIÓN NO ENCONTRADA");
-        console.log("🔍 IDs de sesiones disponibles:", recipe.brewingSessions.map(s => s.sessionId));
         return res.status(404).json({ error: "Sesión no encontrada" });
       }
 
-      console.log("📊 Estado actual de la sesión:", session.status);
-      
       if (session.status !== "fermenting") {
-        console.log("❌ ESTADO INCORRECTO - Se requiere 'fermenting', encontrado:", session.status);
         return res
           .status(400)
           .json({ error: "Solo se pueden completar batches en fermentación" });
       }
-      
-      console.log("✅ TODO CORRECTO - Procediendo a completar batch");
 
       // Actualizar el estado y datos finales
       session.status = "completed";
@@ -881,7 +861,7 @@ router.get("/brewing-sessions", checkAuth, async (req, res) => {
         recipe.brewingSessions.forEach((session) => {
           allSessions.push({
             sessionId: session.sessionId,
-            recipeId: recipe._id.toString(),
+            recipeId: recipe.id,
             recipeName: recipe.name,
             recipeStyle: recipe.style,
             startDate: session.startDate,

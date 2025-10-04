@@ -1918,3 +1918,30 @@ export const getUserSubscriptions = (userId) => {
     controller,
   };
 };
+
+// Completar batch (marcar como terminado)
+export const completeBatch = (recipeId, sessionId, batchData) => {
+  const controller = loadAbort();
+  const headers = getAxiosHeaders();
+
+  if (!headers) {
+    return Promise.reject(new Error("No authenticated"));
+  }
+
+  return {
+    call: axios
+      .patch(
+        process.env.NEXT_PUBLIC_API_URL + `/admin/recipes/${recipeId}/sessions/${sessionId}/complete`,
+        batchData,
+        {
+          ...headers,
+          signal: controller.signal,
+        }
+      )
+      .catch((error) => {
+        console.error("Error completing batch:", error);
+        throw error;
+      }),
+    controller,
+  };
+};

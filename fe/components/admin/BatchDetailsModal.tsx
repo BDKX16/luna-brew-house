@@ -44,7 +44,10 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import useFetchAndLoad from "@/hooks/useFetchAndLoad";
-import { updateBrewingSessionPackaging } from "@/services/private";
+import {
+  updateBrewingSessionPackaging,
+  completeBatch,
+} from "@/services/private";
 
 interface BatchDetailsModalProps {
   session: BrewingSession | null;
@@ -115,6 +118,10 @@ export default function BatchDetailsModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [packagingDate, setPackagingDate] = useState("");
   const [isUpdatingPackaging, setIsUpdatingPackaging] = useState(false);
+  const [isCompletingBatch, setIsCompletingBatch] = useState(false);
+  const [finalGravity, setFinalGravity] = useState("");
+  const [batchLiters, setBatchLiters] = useState("");
+  const [completionNotes, setCompletionNotes] = useState("");
   const { toast } = useToast();
   const { callEndpoint } = useFetchAndLoad();
 
@@ -346,6 +353,49 @@ export default function BatchDetailsModal({
     }
   };
 
+  const handleCompleteBatch = async () => {
+    setIsCompletingBatch(true);
+
+    try {
+      const requestBody: any = {};
+
+      if (finalGravity) {
+        requestBody.finalGravity = parseFloat(finalGravity);
+      }
+
+      if (batchLiters) {
+        requestBody.batchLiters = parseFloat(batchLiters);
+      }
+
+      if (completionNotes) {
+        requestBody.batchNotes = completionNotes;
+      }
+
+      const response = await callEndpoint(
+        completeBatch(session.recipeId, session.sessionId, requestBody)
+      );
+      console.log(response);
+      if (response && response.data) {
+        toast({
+          title: "Éxito",
+          description: "Batch completado exitosamente",
+        });
+        onClose(); // Cerrar modal para refrescar datos
+      } else {
+        throw new Error(response?.error || "Error desconocido");
+      }
+    } catch (error) {
+      console.error("Error completing batch:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo completar el batch",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompletingBatch(false);
+    }
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -477,6 +527,84 @@ export default function BatchDetailsModal({
                 </CardContent>
               </Card>
             </div>
+
+            {/* Sección para completar batch cuando está fermentando */}
+            {session.status === "fermenting" && (
+              <>
+                <Separator />
+                <div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        Completar Batch
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Marca este batch como completado cuando la fermentación
+                        haya terminado
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium">
+                            Gravedad Final
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.001"
+                            placeholder="1.010"
+                            value={finalGravity}
+                            onChange={(e) => setFinalGravity(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">
+                            Litros Finales
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            placeholder="20"
+                            value={batchLiters}
+                            onChange={(e) => setBatchLiters(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">
+                          Notas Finales del Batch
+                        </label>
+                        <textarea
+                          className="w-full mt-1 p-2 border rounded-md"
+                          rows={3}
+                          placeholder="Observaciones finales, sabor, aroma, etc..."
+                          value={completionNotes}
+                          onChange={(e) => setCompletionNotes(e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        onClick={handleCompleteBatch}
+                        disabled={isCompletingBatch}
+                        className="w-full bg-green-600 hover:bg-green-700"
+                      >
+                        {isCompletingBatch ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Completando Batch...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Marcar como Completado
+                          </>
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
 
             {/* Sección de envasado para sesiones completadas */}
             {session.status === "completed" && (
